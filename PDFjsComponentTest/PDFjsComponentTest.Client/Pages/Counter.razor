@@ -1,0 +1,152 @@
+﻿@page "/counter"
+@rendermode InteractiveWebAssembly
+
+<TelerikRootComponent>
+
+<PageTitle>Counter</PageTitle>
+
+<h1>Counter</h1>
+
+<p role="status">Current count: @currentCount</p>
+
+<button class="btn btn-primary" @onclick="IncrementCount">Click me</button>
+
+<hr />
+
+<h2>Telerik Components</h2>
+
+<div class="mb-3">
+    <label for="textbox" class="form-label">TextBox</label>
+    <TelerikTextBox @bind-Value="@TextBoxValue"
+                    PlaceHolder="Enter some text..."
+                    Width="300px" />
+    <p>TextBox Value: @TextBoxValue</p>
+</div>
+
+<div class="mb-3">
+    <label for="datetimepicker" class="form-label">DateTime Picker</label>
+    <TelerikDateTimePicker @bind-Value="@DateTimeValue"
+                           Format="MM/dd/yyyy HH:mm"
+                           Width="300px" />
+    <p>Selected DateTime: @(DateTimeValue?.ToString("MM/dd/yyyy HH:mm"))</p>
+</div>
+
+<div class="mb-3">
+    <TelerikButton OnClick="@OnTestButtonClick"
+                   ThemeColor="@ThemeConstants.Button.ThemeColor.Primary">
+        Test Button
+    </TelerikButton>
+    <p>@ButtonMessage</p>
+</div>
+
+<hr />
+
+<h2>PDF Viewer</h2>
+
+<div class="mb-3 d-flex align-items-end gap-3 flex-wrap">
+    <div>
+        <label class="form-label">Select a PDF file:</label>
+        <InputFile OnChange="@OnFileSelected" accept=".pdf" class="form-control" style="max-width: 400px;" />
+    </div>
+
+    <div>
+        <label class="form-label">Zoom:</label>
+        <select class="form-select w-auto" @bind="selectedZoom">
+            <option value="@PdfZoom.Percent25">25%</option>
+            <option value="@PdfZoom.Percent50">50%</option>
+            <option value="@PdfZoom.Percent100">100%</option>
+            <option value="@PdfZoom.Percent150">150%</option>
+            <option value="@PdfZoom.Percent200">200%</option>
+            <option value="@PdfZoom.FullPage">Full Page</option>
+            <option value="@PdfZoom.FullWidth">Full Width</option>
+        </select>
+    </div>
+
+    <div>
+        <label class="form-label">Orientation:</label>
+        <select class="form-select w-auto" @bind="selectedOrientation">
+            <option value="@PdfOrientation.Portrait">Portrait</option>
+            <option value="@PdfOrientation.Landscape">Landscape</option>
+        </select>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(selectedFileName))
+{
+    <p class="text-muted mb-2">
+        <strong>Loaded:</strong> @selectedFileName (@FormatFileSize(selectedFileSize))
+    </p>
+}
+
+@if (pdfBytes is not null)
+{
+    <PdfViewer PDFData="@pdfBytes"
+               ZoomPercentage="@selectedZoom"
+               Orientation="@selectedOrientation"
+               Height="700px" />
+}
+else
+{
+    <div class="border rounded p-5 text-center text-muted" style="height: 200px; display: flex; align-items: center; justify-content: center; background: #f8f9fa;">
+        <span>Select a PDF file above to view it here.</span>
+    </div>
+}
+
+</TelerikRootComponent>
+
+@code {
+    private int currentCount = 0;
+    private string? TextBoxValue { get; set; }
+    private DateTime? DateTimeValue { get; set; } = DateTime.Now;
+    private string ButtonMessage { get; set; } = string.Empty;
+
+    private PdfZoom selectedZoom = PdfZoom.FullWidth;
+    private PdfOrientation selectedOrientation = PdfOrientation.Portrait;
+
+    private byte[]? pdfBytes;
+    private string? selectedFileName;
+    private long selectedFileSize;
+
+    private const long MaxFileSize = 50 * 1024 * 1024; // 50 MB
+
+    private async Task OnFileSelected(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+
+        if (file is null) return;
+
+        if (!file.ContentType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase)
+            && !file.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+        {
+            ButtonMessage = "Please select a valid PDF file.";
+            return;
+        }
+
+        selectedFileName = file.Name;
+        selectedFileSize = file.Size;
+
+        await using var stream = file.OpenReadStream(maxAllowedSize: MaxFileSize);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms);
+        pdfBytes = ms.ToArray();
+    }
+
+    private static string FormatFileSize(long bytes)
+    {
+        if (bytes < 1024)
+            return $"{bytes} B";
+        if (bytes < 1024 * 1024)
+            return $"{bytes / 1024.0:F1} KB";
+        return $"{bytes / (1024.0 * 1024.0):F1} MB";
+    }
+
+    private void IncrementCount()
+    {
+        currentCount++;
+    }
+
+    private void OnTestButtonClick()
+    {
+        ButtonMessage = $"Button clicked! TextBox: '{TextBoxValue}', DateTime: '{DateTimeValue?.ToString("MM/dd/yyyy HH:mm")}'";
+    }
+}

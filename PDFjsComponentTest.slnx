@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="PDFjsComponentTest/PDFjsComponentTest.Client/PDFjsComponentTest.Client.csproj" />
+  <Project Path="PDFjsComponentTest/PDFjsComponentTest/PDFjsComponentTest.csproj" />
+</Solution>

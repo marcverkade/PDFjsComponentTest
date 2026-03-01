@@ -1,0 +1,15 @@
+﻿{
+  "servers": {
+    "telerik-dpl-assistant": {
+      "type": "stdio",
+      "command": "dnx",
+      "args": [
+        "Telerik.DPL.MCP",
+        "--yes"
+      ],
+      "env": {
+        "TELERIK_LICENSE_PATH": "C:\\Users\\Mitcon\\AppData\\Roaming\\Telerik\\telerik-license.txt"
+      }
+    }
+  }
+}

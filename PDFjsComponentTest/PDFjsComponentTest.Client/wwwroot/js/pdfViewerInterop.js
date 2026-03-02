@@ -160,7 +160,7 @@ async function renderPages(containerId) {
     // centered via align-items:center. The scroll container clips and scrolls
     // any overflow beyond its own fixed bounds.
     wrapper.style.cssText =
-        'display:inline-flex;flex-direction:column;align-items:center;' +
+        'display:inline-flex;flex-direction:column;align-items:flex-start;' +
         'gap:8px;padding:12px;min-width:100%;box-sizing:border-box';
 
     const { pdf, rotation, displayMode, currentPage } = viewer;
@@ -202,7 +202,7 @@ async function renderPages(containerId) {
         div.className = 'pdf-page';
         div.style.cssText =
             `width:${vp.width}px;height:${vp.height}px;background:#fff;` +
-            'box-shadow:0 2px 8px rgba(0,0,0,.3);flex-shrink:0';
+            'box-shadow:0 2px 8px rgba(0,0,0,.3);flex-shrink:0;margin:0 auto';
 
         // Create and configure canvas
         const canvas = document.createElement('canvas');
@@ -327,7 +327,8 @@ function setScrollForFocalPoint(containerId, pageX, pageY, vpX, vpY, oldScale) {
 // ── Touch gestures ──────────────────────────────────────────────────────
 
 /**
- * Sets up touch event handlers for pinch-to-zoom and double-tap-to-zoom.
+ * Sets up touch event handlers for pinch-to-zoom, double-tap-to-zoom,
+ * and swipe-at-boundary page navigation.
  *
  * Pinch-to-zoom workflow:
  *   1. On touchstart (2 fingers): record initial distance, scale, and focal point
@@ -339,6 +340,12 @@ function setScrollForFocalPoint(containerId, pageX, pageY, vpX, vpY, oldScale) {
  * Double-tap workflow:
  *   - Detects two taps within DOUBLE_TAP_DELAY_MS and DOUBLE_TAP_RADIUS_PX
  *   - Toggles between fit scale and DOUBLE_TAP_ZOOM × fit scale
+ *
+ * Swipe-at-boundary workflow (single-page mode only):
+ *   - Only triggers if the swipe STARTED at a scroll boundary (or content fits)
+ *   - Swipe left while already at the right edge → next page
+ *   - Swipe right while already at the left edge → previous page
+ *   - This prevents accidental page turns during normal panning
  */
 function setupTouchGestures(containerId) {
     const container = document.getElementById(containerId);
@@ -364,6 +371,27 @@ function setupTouchGestures(containerId) {
     let tapStartTime = 0;           // When the current tap began
     let tapStartX = 0, tapStartY = 0;
     let wasPinching = false;         // Suppress tap detection right after a pinch
+
+    // ── Swipe-at-boundary state ──
+    // Captured at touchstart so we know the user was ALREADY at the edge
+    // before the swipe began — prevents pan-then-swipe from navigating.
+    let swipeStartedAtLeftEdge = false;
+    let swipeStartedAtRightEdge = false;
+
+    /** Whether content fits horizontally (no scrollbar needed). 1px tolerance. */
+    function fitsH() {
+        return container.scrollWidth <= container.clientWidth + 1;
+    }
+
+    /** Whether scrolled to (or past) the right edge. 1px tolerance for rounding. */
+    function atRightEdge() {
+        return container.scrollLeft + container.clientWidth >= container.scrollWidth - 1;
+    }
+
+    /** Whether scrolled to the left edge. */
+    function atLeftEdge() {
+        return container.scrollLeft <= 1;
+    }
 
     function onTouchStart(e) {
         if (e.touches.length === 2) {
@@ -405,6 +433,12 @@ function setupTouchGestures(containerId) {
             tapStartX = e.touches[0].clientX;
             tapStartY = e.touches[0].clientY;
             wasPinching = false;
+
+            // Snapshot boundary state at swipe START.
+            // The swipe will only navigate if the user was already at
+            // the edge before the gesture — not if panning brought them there.
+            swipeStartedAtLeftEdge = fitsH() || atLeftEdge();
+            swipeStartedAtRightEdge = fitsH() || atRightEdge();
         }
     }
 
@@ -513,18 +547,46 @@ function setupTouchGestures(containerId) {
             return;
         }
 
-        // Don't process taps immediately after a pinch, or if fingers remain
+        // Don't process taps/swipes immediately after a pinch, or if fingers remain
         if (wasPinching || e.touches.length > 0) return;
 
         const t = e.changedTouches[0];
         if (!t) return;
 
-        // Filter out long presses and drags (only short, stationary taps count)
         const dt = Date.now() - tapStartTime;
-        const dx = Math.abs(t.clientX - tapStartX);
-        const dy = Math.abs(t.clientY - tapStartY);
+        const dx = t.clientX - tapStartX;   // Signed: positive = finger moved right
+        const dy = t.clientY - tapStartY;
+        const absDx = Math.abs(dx);
+        const absDy = Math.abs(dy);
 
-        if (dt > 250 || dx > 15 || dy > 15) {
+        // ── Swipe-at-boundary: page navigation (single-page mode) ──
+        // Must be: single-page mode, fast horizontal swipe, AND the swipe
+        // started when the scroll was already at the boundary edge.
+        if (
+            viewer.displayMode === 'single' &&
+            dt < SWIPE_MAX_DURATION_MS &&
+            absDx > SWIPE_MIN_DISTANCE_PX &&
+            absDy < SWIPE_MAX_VERTICAL_PX
+        ) {
+            // Swipe left (finger moved left, dx < 0) while at right edge → next page
+            if (dx < 0 && swipeStartedAtRightEdge) {
+                e.preventDefault();
+                navigateToPage(containerId, viewer.currentPage + 1);
+                lastTapTime = 0;
+                return;
+            }
+            // Swipe right (finger moved right, dx > 0) while at left edge → previous page
+            if (dx > 0 && swipeStartedAtLeftEdge) {
+                e.preventDefault();
+                navigateToPage(containerId, viewer.currentPage - 1);
+                lastTapTime = 0;
+                return;
+            }
+        }
+
+        // ── Double-tap detection ──
+        // Filter out long presses and drags (only short, stationary taps count)
+        if (dt > 250 || absDx > 15 || absDy > 15) {
             lastTapTime = 0;  // Reset — this wasn't a tap
             return;
         }
@@ -1001,6 +1063,7 @@ function setupKeyboardPan(containerId) {
     }
 
     function onKeyDown(e) {
+
         // ── Ctrl+Arrow: page navigation in single-page mode ──
         if (e.ctrlKey && viewer.displayMode === 'single') {
             if (e.key === 'ArrowRight') {

@@ -511,9 +511,13 @@ function setupTouchGestures(containerId) {
     }
 
     /**
-     * Toggle zoom on double-tap: if currently zoomed in beyond 1.3× fit,
-     * zoom back to fit; otherwise zoom to DOUBLE_TAP_ZOOM × fit.
-     */
+         * Toggle zoom on double-tap: if currently zoomed in beyond 1.3× fit,
+         * zoom back to fit; otherwise zoom to DOUBLE_TAP_ZOOM × fit.
+         *
+         * Recomputes the fit scale fresh from the current page and container
+         * dimensions rather than relying on the cached baseScale, which may
+         * be stale if the container width changed (e.g. scrollbar appeared).
+         */
     async function handleDoubleTap(clientX, clientY) {
         const rect = container.getBoundingClientRect();
         const vpX = clientX - rect.left;
@@ -526,14 +530,30 @@ function setupTouchGestures(containerId) {
 
         const current =
             viewer.pinchScale ?? viewer.currentScale ?? viewer.baseScale ?? 1.0;
-        const fit = viewer.baseScale ?? 1.0;
+
+        // Recompute fit scale fresh from the current page instead of using
+        // the cached baseScale, which may be stale after a zoom changed
+        // the scrollbar state and therefore the container's clientWidth.
+        let fit = viewer.baseScale ?? 1.0;
+        try {
+            const page = await viewer.pdf.getPage(viewer.currentPage);
+            fit = computeScale(page, viewer.zoomValue, container, viewer.rotation);
+        } catch { /* fall back to cached baseScale */ }
 
         // Determine if we're already zoomed in significantly
         const zoomedIn = current > fit * 1.3;
         const oldScale = current;
-        viewer.pinchScale = zoomedIn
-            ? null  // Zoom back to fit
-            : clamp(fit * DOUBLE_TAP_ZOOM, MIN_SCALE, MAX_SCALE);  // Zoom in
+
+        if (zoomedIn) {
+            // Zoom back to fit — clear pinch scale and cached values so
+            // renderPages recomputes everything from the zoomValue cleanly
+            viewer.pinchScale = null;
+            viewer.baseScale = null;
+            viewer.currentScale = null;
+        } else {
+            // Zoom in to DOUBLE_TAP_ZOOM × fit
+            viewer.pinchScale = clamp(fit * DOUBLE_TAP_ZOOM, MIN_SCALE, MAX_SCALE);
+        }
 
         await renderPages(containerId);
         setScrollForFocalPoint(containerId, pageX, pageY, vpX, vpY, oldScale);

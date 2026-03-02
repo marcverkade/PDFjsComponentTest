@@ -43,53 +43,61 @@
 
 <h2>PDF Viewer</h2>
 
-<div class="mb-3 d-flex align-items-end gap-3 flex-wrap">
-    <div>
-        <label class="form-label">Select a PDF file:</label>
-        <InputFile OnChange="@OnFileSelected" accept=".pdf" class="form-control" style="max-width: 400px;" />
-    </div>
-
-    <div>
-        <label class="form-label">Zoom:</label>
-        <select class="form-select w-auto" @bind="selectedZoom">
-            <option value="@PdfZoom.Percent25">25%</option>
-            <option value="@PdfZoom.Percent50">50%</option>
-            <option value="@PdfZoom.Percent100">100%</option>
-            <option value="@PdfZoom.Percent150">150%</option>
-            <option value="@PdfZoom.Percent200">200%</option>
-            <option value="@PdfZoom.FullPage">Full Page</option>
-            <option value="@PdfZoom.FullWidth">Full Width</option>
-        </select>
-    </div>
-
-    <div>
-        <label class="form-label">Orientation:</label>
-        <select class="form-select w-auto" @bind="selectedOrientation">
-            <option value="@PdfOrientation.Portrait">Portrait</option>
-            <option value="@PdfOrientation.Landscape">Landscape</option>
-        </select>
-    </div>
-</div>
-
-@if (!string.IsNullOrEmpty(selectedFileName))
+@if (!_isInteractive)
 {
-    <p class="text-muted mb-2">
-        <strong>Loaded:</strong> @selectedFileName (@FormatFileSize(selectedFileSize))
-    </p>
-}
-
-@if (pdfBytes is not null)
-{
-    <PdfViewer PDFData="@pdfBytes"
-               ZoomPercentage="@selectedZoom"
-               Orientation="@selectedOrientation"
-               Height="700px" />
+    <div class="border rounded p-5 text-center text-muted" style="height: 200px; display: flex; align-items: center; justify-content: center; background: #f8f9fa;">
+        <span>Loading WebAssembly runtime...</span>
+    </div>
 }
 else
 {
-    <div class="border rounded p-5 text-center text-muted" style="height: 200px; display: flex; align-items: center; justify-content: center; background: #f8f9fa;">
-        <span>Select a PDF file above to view it here.</span>
+    <div class="mb-3 d-flex align-items-end gap-3 flex-wrap">
+        <div>
+            <label class="form-label">Select a PDF file:</label>
+            <InputFile OnChange="@OnFileSelected" accept=".pdf" class="form-control" style="max-width: 400px;" />
+        </div>
+
+        <div>
+            <label class="form-label">Zoom:</label>
+            <select class="form-select w-auto" @bind="selectedZoom">
+                <option value="@PdfZoom.Percent25">25%</option>
+                <option value="@PdfZoom.Percent50">50%</option>
+                <option value="@PdfZoom.Percent100">100%</option>
+                <option value="@PdfZoom.Percent150">150%</option>
+                <option value="@PdfZoom.Percent200">200%</option>
+                <option value="@PdfZoom.FullPage">Full Page</option>
+                <option value="@PdfZoom.FullWidth">Full Width</option>
+            </select>
+        </div>
+
+        <div>
+            <label class="form-label">Orientation:</label>
+            <select class="form-select w-auto" @bind="selectedOrientation">
+                <option value="@PdfOrientation.Portrait">Portrait</option>
+                <option value="@PdfOrientation.Landscape">Landscape</option>
+            </select>
+        </div>
     </div>
+
+    @if (!string.IsNullOrEmpty(selectedFileName))
+    {
+        <p class="text-muted mb-2">
+            <strong>Loaded:</strong> @selectedFileName (@FormatFileSize(selectedFileSize))
+        </p>
+    }
+
+    @if (pdfBytes is not null)
+    {
+        <PdfViewer PDFData="@pdfBytes"
+                   ZoomPercentage="@selectedZoom"
+                   Orientation="@selectedOrientation" />
+    }
+    else
+    {
+        <div class="border rounded p-5 text-center text-muted" style="height: 200px; display: flex; align-items: center; justify-content: center; background: #f8f9fa;">
+            <span>Select a PDF file above to view it here.</span>
+        </div>
+    }
 }
 
 </TelerikRootComponent>
@@ -100,6 +108,10 @@ else
     private DateTime? DateTimeValue { get; set; } = DateTime.Now;
     private string ButtonMessage { get; set; } = string.Empty;
 
+    // Tracks whether the WASM runtime is ready and event handlers are wired up.
+    // Prevents the user from interacting with controls that don't work yet.
+    private bool _isInteractive;
+
     private PdfZoom selectedZoom = PdfZoom.FullWidth;
     private PdfOrientation selectedOrientation = PdfOrientation.Portrait;
 
@@ -108,6 +120,17 @@ else
     private long selectedFileSize;
 
     private const long MaxFileSize = 50 * 1024 * 1024; // 50 MB
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // OnAfterRender only fires once the WASM runtime is active
+            // and the component is truly interactive.
+            _isInteractive = true;
+            StateHasChanged();
+        }
+    }
 
     private async Task OnFileSelected(InputFileChangeEventArgs e)
     {

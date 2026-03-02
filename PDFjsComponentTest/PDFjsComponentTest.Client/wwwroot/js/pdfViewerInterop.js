@@ -386,10 +386,6 @@ function setupTouchGestures(containerId) {
             focalPageX = focalCX - offset.x;
             focalPageY = focalCY - offset.y;
 
-            // Lock overflow so the CSS scale transform doesn't expand the
-            // container beyond its fixed bounds during the pinch gesture
-            container.classList.add('is-zooming');
-
             // Prepare wrapper for GPU-composited transforms
             if (viewer.wrapper) {
                 viewer.wrapper.style.willChange = 'transform';
@@ -453,7 +449,6 @@ function setupTouchGestures(containerId) {
 
         // If scale barely changed, treat it as a no-op (avoids unnecessary re-render)
         if (Math.abs(finalScale - pinchStartScale) < 0.005) {
-            container.classList.remove('is-zooming');
             if (viewer.wrapper) {
                 viewer.wrapper.style.transform = '';
                 viewer.wrapper.style.transformOrigin = '';
@@ -467,12 +462,10 @@ function setupTouchGestures(containerId) {
         viewer.pinchScale = finalScale;
         try {
             await renderPages(containerId);
-            container.classList.remove('is-zooming');
             setScrollForFocalPoint(
                 containerId, focalPageX, focalPageY,
                 originVX, originVY, pinchStartScale);
         } catch (err) {
-            container.classList.remove('is-zooming');
             console.warn('[PdfViewer] Pinch commit failed:', err);
         }
     }
@@ -606,6 +599,10 @@ function setupDragPan(containerId) {
     container.style.cursor = 'grab';
 
     function onMouseDown(e) {
+        // Focus the container so keyboard events (arrow keys) work
+        // without requiring the user to tab to it
+        container.focus();
+
         // Only left mouse button, and not when Ctrl is held (that's for zoom)
         if (e.button !== 0 || e.ctrlKey) return;
 
@@ -718,10 +715,6 @@ function setupWheelZoom(containerId) {
             originPageX = originCX - offset.x;
             originPageY = originCY - offset.y;
 
-            // Lock overflow so the CSS scale transform doesn't expand the
-            // container beyond its fixed bounds during the zoom gesture
-            container.classList.add('is-zooming');
-
             // Prepare wrapper for GPU-composited transforms
             if (viewer.wrapper) {
                 viewer.wrapper.style.willChange = 'transform';
@@ -767,16 +760,9 @@ function setupWheelZoom(containerId) {
             viewer.pinchScale = finalScale;
             renderPages(containerId)
                 .then(() => {
-                    // Remove is-zooming BEFORE setting scroll position.
-                    // is-zooming sets overflow:hidden, which makes
-                    // scrollWidth === clientWidth, causing
-                    // setScrollForFocalPoint to think content fits and
-                    // skip the scroll adjustment entirely.
-                    container.classList.remove('is-zooming');
                     setScrollForFocalPoint(containerId, pX, pY, vX, vY, oldScale);
                 })
                 .catch(err => {
-                    container.classList.remove('is-zooming');
                     console.warn('[PdfViewer] Wheel zoom re-render failed:', err);
                 });
         }, WHEEL_DEBOUNCE_MS);
@@ -875,6 +861,7 @@ export async function initialize(containerId, pdfUrl, zoomValue, rotation, displ
     setupTouchGestures(containerId);
     setupWheelZoom(containerId);
     setupDragPan(containerId);
+    setupKeyboardPan(containerId);
     setupResizeHandler(containerId);
     return pdf.numPages;
 }
@@ -905,6 +892,7 @@ export async function initializeFromData(containerId, pdfData, zoomValue, rotati
     setupTouchGestures(containerId);
     setupWheelZoom(containerId);
     setupDragPan(containerId);
+    setupKeyboardPan(containerId);
     setupResizeHandler(containerId);
     return pdf.numPages;
 }
@@ -963,6 +951,7 @@ export function disposePdfViewer(containerId) {
         if (viewer._gestureCleanup) viewer._gestureCleanup();
         if (viewer._wheelCleanup) viewer._wheelCleanup();
         if (viewer._dragCleanup) viewer._dragCleanup();
+        if (viewer._keyboardCleanup) viewer._keyboardCleanup();
         if (viewer._resizeObserver) viewer._resizeObserver.disconnect();
         viewer.pdf.destroy();
         delete viewers[containerId];
@@ -970,4 +959,60 @@ export function disposePdfViewer(containerId) {
 
     const container = document.getElementById(containerId);
     if (container) container.innerHTML = '';
+}
+
+// ── Arrow-key panning ───────────────────────────────────────────────────
+
+/** Pixels to scroll per arrow-key press. */
+const ARROW_SCROLL_PX = 60;
+
+/**
+ * Sets up arrow-key scrolling so the user can pan the PDF when it
+ * overflows the container. The container must be focusable (tabindex)
+ * to receive keyboard events.
+ */
+function setupKeyboardPan(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    const viewer = viewers[containerId];
+    if (!viewer) return;
+
+    // Make the container focusable so it can receive keydown events
+    if (!container.hasAttribute('tabindex')) {
+        container.setAttribute('tabindex', '0');
+        // Remove the default focus outline — the container border is enough
+        container.style.outline = 'none';
+    }
+
+    function onKeyDown(e) {
+        const overflowsX = container.scrollWidth > container.clientWidth;
+        const overflowsY = container.scrollHeight > container.clientHeight;
+        if (!overflowsX && !overflowsY) return;
+
+        switch (e.key) {
+            case 'ArrowLeft':
+                if (overflowsX) container.scrollLeft -= ARROW_SCROLL_PX;
+                break;
+            case 'ArrowRight':
+                if (overflowsX) container.scrollLeft += ARROW_SCROLL_PX;
+                break;
+            case 'ArrowUp':
+                if (overflowsY) container.scrollTop -= ARROW_SCROLL_PX;
+                break;
+            case 'ArrowDown':
+                if (overflowsY) container.scrollTop += ARROW_SCROLL_PX;
+                break;
+            default:
+                return; // Don't preventDefault for non-arrow keys
+        }
+        e.preventDefault();
+    }
+
+    container.addEventListener('keydown', onKeyDown);
+
+    // Store cleanup function for disposePdfViewer
+    viewer._keyboardCleanup = () => {
+        container.removeEventListener('keydown', onKeyDown);
+    };
 }

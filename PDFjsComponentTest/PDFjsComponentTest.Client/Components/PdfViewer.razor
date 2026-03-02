@@ -2,7 +2,7 @@
 @inject IJSRuntime JS
 
 <div class="pdf-viewer-container"
-     style="width: @(Width ?? "100%"); height: @(Height ?? "700px");">
+     style="width: @(Width ?? "100%"); @(Height is not null ? $"height: {Height};" : "")">
     <div class="pdf-viewer-toolbar">
         @if (DisplayMode == PdfDisplayMode.SinglePage && _totalPages > 1)
         {

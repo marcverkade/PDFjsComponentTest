@@ -5,6 +5,10 @@
     flex-direction: column;
     overflow: hidden;
     background-color: #525659;
+    /* When no explicit height is set via inline style, the container
+       grows to fit the PDF page content (toolbar + page + padding).
+       max-height prevents it from exceeding the viewport. */
+    max-height: 100vh;
 }
 
 .pdf-viewer-toolbar {
@@ -30,16 +34,12 @@
        so a 2000px-wide PDF page scrolls inside instead of pushing
        the container (and the page) wider. */
     display: grid;
-    overflow: auto;
+    /* Always show scrollbar gutter to prevent layout shifts when
+       content size changes during zoom. */
+    overflow: scroll;
+    scrollbar-gutter: stable;
     -webkit-overflow-scrolling: touch;
     touch-action: pan-x pan-y;
     min-width: 0;
     min-height: 0;
-}
-
-/* Applied during pinch/wheel zoom CSS transform phase.
-   overflow:scroll (not hidden) keeps the scrollbar gutter reserved,
-   preventing a layout shift when overflow:auto restores after render. */
-.pdf-viewer-pages.is-zooming {
-    overflow: scroll;
 }

@@ -24,6 +24,12 @@ const DOUBLE_TAP_ZOOM = 2.5;       // Zoom multiplier on double-tap (relative to
 const WHEEL_ZOOM_SPEED = 0.001;
 const WHEEL_DEBOUNCE_MS = 250;     // Delay before committing wheel zoom to full render
 
+// Swipe-at-boundary: triggers page navigation on mobile when
+// the user swipes horizontally while already at the scroll edge.
+const SWIPE_MIN_DISTANCE_PX = 60;  // Minimum horizontal travel for a swipe
+const SWIPE_MAX_VERTICAL_PX = 80;  // Maximum vertical deviation (keeps it horizontal)
+const SWIPE_MAX_DURATION_MS = 400;  // Maximum touch duration to count as a swipe
+
 // iOS Safari enforces hard limits on canvas backing-store memory (~256 MB).
 // These budgets prevent tab crashes on high-DPI devices at high zoom.
 const MAX_CANVAS_PIXELS = 8_388_608;  // 8 MP per canvas
@@ -997,38 +1003,14 @@ function setupKeyboardPan(containerId) {
     function onKeyDown(e) {
         // ── Ctrl+Arrow: page navigation in single-page mode ──
         if (e.ctrlKey && viewer.displayMode === 'single') {
-            if (e.key === 'ArrowRight' && viewer.currentPage < viewer.pdf.numPages) {
+            if (e.key === 'ArrowRight') {
                 e.preventDefault();
-                // Navigate to next page and notify Blazor
-                const newPage = viewer.currentPage + 1;
-                viewer.currentPage = newPage;
-                renderPages(containerId)
-                    .then(() => {
-                        const c = document.getElementById(containerId);
-                        if (c) { c.scrollLeft = 0; c.scrollTop = 0; }
-                        // Notify Blazor of the page change so the toolbar updates
-                        if (viewer._dotNetRef) {
-                            viewer._dotNetRef.invokeMethodAsync('OnPageChangedFromJs', newPage);
-                        }
-                    })
-                    .catch(err => console.warn('[PdfViewer] Page nav failed:', err));
+                navigateToPage(containerId, viewer.currentPage + 1);
                 return;
             }
-            if (e.key === 'ArrowLeft' && viewer.currentPage > 1) {
+            if (e.key === 'ArrowLeft') {
                 e.preventDefault();
-                // Navigate to previous page and notify Blazor
-                const newPage = viewer.currentPage - 1;
-                viewer.currentPage = newPage;
-                renderPages(containerId)
-                    .then(() => {
-                        const c = document.getElementById(containerId);
-                        if (c) { c.scrollLeft = 0; c.scrollTop = 0; }
-                        // Notify Blazor of the page change so the toolbar updates
-                        if (viewer._dotNetRef) {
-                            viewer._dotNetRef.invokeMethodAsync('OnPageChangedFromJs', newPage);
-                        }
-                    })
-                    .catch(err => console.warn('[PdfViewer] Page nav failed:', err));
+                navigateToPage(containerId, viewer.currentPage - 1);
                 return;
             }
         }
@@ -1073,4 +1055,30 @@ function setupKeyboardPan(containerId) {
 export function focusContainer(containerId) {
     const container = document.getElementById(containerId);
     if (container) container.focus();
+}
+
+// ── Page navigation helper ──────────────────────────────────────────────
+
+/**
+ * Navigate to a page (render + scroll to top + notify Blazor).
+ * Shared by keyboard, swipe, and toolbar-triggered navigation.
+ * Does nothing if the page is out of range or already current.
+ */
+function navigateToPage(containerId, newPage) {
+    const viewer = viewers[containerId];
+    if (!viewer) return;
+    if (newPage < 1 || newPage > viewer.pdf.numPages) return;
+    if (newPage === viewer.currentPage) return;
+
+    viewer.currentPage = newPage;
+    renderPages(containerId)
+        .then(() => {
+            const c = document.getElementById(containerId);
+            if (c) { c.scrollLeft = 0; c.scrollTop = 0; }
+            // Notify Blazor of the page change so the toolbar updates
+            if (viewer._dotNetRef) {
+                viewer._dotNetRef.invokeMethodAsync('OnPageChangedFromJs', newPage);
+            }
+        })
+        .catch(err => console.warn('[PdfViewer] Page nav failed:', err));
 }

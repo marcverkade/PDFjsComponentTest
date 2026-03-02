@@ -4,6 +4,14 @@
 <div class="pdf-viewer-container"
      style="width: @(Width ?? "100%"); height: @(Height ?? "700px");">
     <div class="pdf-viewer-toolbar">
+        @if (DisplayMode == PdfDisplayMode.SinglePage && _totalPages > 1)
+        {
+            <div class="pdf-viewer-nav">
+                <button class="pdf-nav-btn" @onclick="PreviousPage" disabled="@(_currentPage <= 1)" title="Previous page">‹</button>
+                <span class="pdf-nav-label">@_currentPage / @_totalPages</span>
+                <button class="pdf-nav-btn" @onclick="NextPage" disabled="@(_currentPage >= _totalPages)" title="Next page">›</button>
+            </div>
+        }
         <span class="pdf-viewer-info">
             @if (!string.IsNullOrEmpty(_errorMessage))
             {
@@ -11,7 +19,14 @@
             }
             else if (_totalPages > 0)
             {
-                <span>@_totalPages page(s) | Zoom: @ZoomPercentage | @Orientation</span>
+                @if (DisplayMode == PdfDisplayMode.Continuous)
+                {
+                    <span>@_totalPages page(s) | Zoom: @ZoomPercentage | @Orientation</span>
+                }
+                else
+                {
+                    <span>Zoom: @ZoomPercentage | @Orientation</span>
+                }
             }
             else if (_isLoading)
             {
@@ -43,6 +58,10 @@
     [Parameter]
     public PdfZoom ZoomPercentage { get; set; } = PdfZoom.Percent100;
 
+    /// <summary>SinglePage shows one page with navigation; Continuous renders all pages in a scroll.</summary>
+    [Parameter]
+    public PdfDisplayMode DisplayMode { get; set; } = PdfDisplayMode.SinglePage;
+
     /// <summary>CSS width of the viewer container (e.g. "100%", "800px").</summary>
     [Parameter]
     public string? Width { get; set; }
@@ -54,6 +73,7 @@
     private IJSObjectReference? _module;
     private readonly string _containerId = $"pdf-viewer-{Guid.NewGuid():N}";
     private int _totalPages;
+    private int _currentPage = 1;
     private bool _isLoading;
     private bool _moduleLoaded;
     private string? _errorMessage;
@@ -62,6 +82,7 @@
     private byte[]? _prevData;
     private PdfZoom _prevZoom;
     private PdfOrientation _prevOrientation;
+    private PdfDisplayMode _prevDisplayMode;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -86,6 +107,7 @@
             _prevData = PDFData;
             _prevZoom = ZoomPercentage;
             _prevOrientation = Orientation;
+            _prevDisplayMode = DisplayMode;
             return;
         }
 
@@ -99,12 +121,15 @@
             _prevData = PDFData;
             _prevZoom = ZoomPercentage;
             _prevOrientation = Orientation;
+            _prevDisplayMode = DisplayMode;
+            _currentPage = 1;
             await LoadPdfAsync();
         }
-        else if (_prevZoom != ZoomPercentage || _prevOrientation != Orientation)
+        else if (_prevZoom != ZoomPercentage || _prevOrientation != Orientation || _prevDisplayMode != DisplayMode)
         {
             _prevZoom = ZoomPercentage;
             _prevOrientation = Orientation;
+            _prevDisplayMode = DisplayMode;
             await UpdateViewAsync();
         }
     }
@@ -124,12 +149,12 @@
             if (PDFData is { Length: > 0 })
             {
                 _totalPages = await _module.InvokeAsync<int>(
-                    "initializeFromData", _containerId, PDFData, GetZoomValue(), GetRotation());
+                    "initializeFromData", _containerId, PDFData, GetZoomValue(), GetRotation(), GetDisplayMode());
             }
             else
             {
                 _totalPages = await _module.InvokeAsync<int>(
-                    "initialize", _containerId, PDFFileName, GetZoomValue(), GetRotation());
+                    "initialize", _containerId, PDFFileName, GetZoomValue(), GetRotation(), GetDisplayMode());
             }
         }
         catch (Exception ex)
@@ -152,7 +177,7 @@
         try
         {
             await _module.InvokeVoidAsync(
-                "updateView", _containerId, GetZoomValue(), GetRotation());
+                "updateView", _containerId, GetZoomValue(), GetRotation(), GetDisplayMode());
         }
         catch (Exception ex)
         {
@@ -160,6 +185,32 @@
             Console.WriteLine($"PdfViewer error: {ex}");
         }
     }
+
+    private async Task GoToPageAsync(int page)
+    {
+        if (_module is null || _totalPages == 0) return;
+
+        var target = Math.Clamp(page, 1, _totalPages);
+        if (target == _currentPage) return;
+
+        _currentPage = target;
+
+        try
+        {
+            await _module.InvokeVoidAsync("goToPage", _containerId, _currentPage);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to navigate: {ex.Message}";
+            Console.WriteLine($"PdfViewer error: {ex}");
+        }
+
+        StateHasChanged();
+    }
+
+    private Task PreviousPage() => GoToPageAsync(_currentPage - 1);
+
+    private Task NextPage() => GoToPageAsync(_currentPage + 1);
 
     private object GetZoomValue() => ZoomPercentage switch
     {
@@ -174,6 +225,8 @@
     };
 
     private int GetRotation() => Orientation == PdfOrientation.Landscape ? 90 : 0;
+
+    private string GetDisplayMode() => DisplayMode == PdfDisplayMode.SinglePage ? "single" : "continuous";
 
     public async ValueTask DisposeAsync()
     {

@@ -16,3 +16,9 @@ public enum PdfZoom
     FullPage,
     FullWidth
 }
+
+public enum PdfDisplayMode
+{
+    SinglePage,
+    Continuous
+}

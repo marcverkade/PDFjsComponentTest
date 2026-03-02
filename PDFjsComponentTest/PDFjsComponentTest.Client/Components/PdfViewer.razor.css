@@ -14,6 +14,7 @@
     display: flex;
     align-items: center;
     min-height: 36px;
+    flex-shrink: 0;
 }
 
 .pdf-viewer-info {
@@ -22,12 +23,23 @@
 }
 
 .pdf-viewer-pages {
-    flex: 1;
+    flex: 1 1 0%;
+    /* Grid layout prevents the container from sizing itself based on
+       its children's intrinsic width. Unlike flex or block layout,
+       a grid container constrains children to its own column track,
+       so a 2000px-wide PDF page scrolls inside instead of pushing
+       the container (and the page) wider. */
+    display: grid;
     overflow: auto;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    padding: 12px;
     -webkit-overflow-scrolling: touch;
+    touch-action: pan-x pan-y;
+    min-width: 0;
+    min-height: 0;
+}
+
+/* Applied during pinch/wheel zoom CSS transform phase.
+   overflow:scroll (not hidden) keeps the scrollbar gutter reserved,
+   preventing a layout shift when overflow:auto restores after render. */
+.pdf-viewer-pages.is-zooming {
+    overflow: scroll;
 }

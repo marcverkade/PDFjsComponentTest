@@ -842,9 +842,10 @@ function createViewerState(pdf, zoomValue, rotation, displayMode) {
 
 /**
  * Initialize the PDF viewer from a URL.
+ * @param {object} dotNetRef - DotNetObjectReference for calling back into Blazor.
  * @returns {number} Total number of pages in the PDF.
  */
-export async function initialize(containerId, pdfUrl, zoomValue, rotation, displayMode) {
+export async function initialize(containerId, pdfUrl, zoomValue, rotation, displayMode, dotNetRef) {
     await ensurePdfjsLoaded();
 
     // Dispose any existing viewer for this container
@@ -857,6 +858,8 @@ export async function initialize(containerId, pdfUrl, zoomValue, rotation, displ
     }).promise;
 
     viewers[containerId] = createViewerState(pdf, zoomValue, rotation, displayMode);
+    // Store the .NET reference for JS→Blazor callbacks (e.g. page navigation)
+    viewers[containerId]._dotNetRef = dotNetRef ?? null;
     await renderPages(containerId);
     setupTouchGestures(containerId);
     setupWheelZoom(containerId);
@@ -868,9 +871,10 @@ export async function initialize(containerId, pdfUrl, zoomValue, rotation, displ
 
 /**
  * Initialize the PDF viewer from raw byte data (base64 string or byte array).
+ * @param {object} dotNetRef - DotNetObjectReference for calling back into Blazor.
  * @returns {number} Total number of pages in the PDF.
  */
-export async function initializeFromData(containerId, pdfData, zoomValue, rotation, displayMode) {
+export async function initializeFromData(containerId, pdfData, zoomValue, rotation, displayMode, dotNetRef) {
     await ensurePdfjsLoaded();
 
     // Dispose any existing viewer for this container
@@ -888,6 +892,8 @@ export async function initializeFromData(containerId, pdfData, zoomValue, rotati
     }).promise;
 
     viewers[containerId] = createViewerState(pdf, zoomValue, rotation, displayMode);
+    // Store the .NET reference for JS→Blazor callbacks (e.g. page navigation)
+    viewers[containerId]._dotNetRef = dotNetRef ?? null;
     await renderPages(containerId);
     setupTouchGestures(containerId);
     setupWheelZoom(containerId);
@@ -970,6 +976,9 @@ const ARROW_SCROLL_PX = 60;
  * Sets up arrow-key scrolling so the user can pan the PDF when it
  * overflows the container. The container must be focusable (tabindex)
  * to receive keyboard events.
+ *
+ * Also handles Ctrl+ArrowLeft/Right to navigate between pages
+ * in single-page mode.
  */
 function setupKeyboardPan(containerId) {
     const container = document.getElementById(containerId);
@@ -986,6 +995,45 @@ function setupKeyboardPan(containerId) {
     }
 
     function onKeyDown(e) {
+        // ── Ctrl+Arrow: page navigation in single-page mode ──
+        if (e.ctrlKey && viewer.displayMode === 'single') {
+            if (e.key === 'ArrowRight' && viewer.currentPage < viewer.pdf.numPages) {
+                e.preventDefault();
+                // Navigate to next page and notify Blazor
+                const newPage = viewer.currentPage + 1;
+                viewer.currentPage = newPage;
+                renderPages(containerId)
+                    .then(() => {
+                        const c = document.getElementById(containerId);
+                        if (c) { c.scrollLeft = 0; c.scrollTop = 0; }
+                        // Notify Blazor of the page change so the toolbar updates
+                        if (viewer._dotNetRef) {
+                            viewer._dotNetRef.invokeMethodAsync('OnPageChangedFromJs', newPage);
+                        }
+                    })
+                    .catch(err => console.warn('[PdfViewer] Page nav failed:', err));
+                return;
+            }
+            if (e.key === 'ArrowLeft' && viewer.currentPage > 1) {
+                e.preventDefault();
+                // Navigate to previous page and notify Blazor
+                const newPage = viewer.currentPage - 1;
+                viewer.currentPage = newPage;
+                renderPages(containerId)
+                    .then(() => {
+                        const c = document.getElementById(containerId);
+                        if (c) { c.scrollLeft = 0; c.scrollTop = 0; }
+                        // Notify Blazor of the page change so the toolbar updates
+                        if (viewer._dotNetRef) {
+                            viewer._dotNetRef.invokeMethodAsync('OnPageChangedFromJs', newPage);
+                        }
+                    })
+                    .catch(err => console.warn('[PdfViewer] Page nav failed:', err));
+                return;
+            }
+        }
+
+        // ── Plain arrow keys: scroll panning ──
         const overflowsX = container.scrollWidth > container.clientWidth;
         const overflowsY = container.scrollHeight > container.clientHeight;
         if (!overflowsX && !overflowsY) return;
@@ -1015,4 +1063,14 @@ function setupKeyboardPan(containerId) {
     viewer._keyboardCleanup = () => {
         container.removeEventListener('keydown', onKeyDown);
     };
+}
+
+/**
+* Focus the scroll container so it receives keyboard events.
+* Called from Blazor after toolbar button clicks to restore
+* arrow-key panning without requiring the user to click the PDF again.
+*/
+export function focusContainer(containerId) {
+    const container = document.getElementById(containerId);
+    if (container) container.focus();
 }

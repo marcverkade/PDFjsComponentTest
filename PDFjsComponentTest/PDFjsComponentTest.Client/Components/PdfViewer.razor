@@ -7,9 +7,9 @@
         @if (DisplayMode == PdfDisplayMode.SinglePage && _totalPages > 1)
         {
             <div class="pdf-viewer-nav">
-                <button class="pdf-nav-btn" @onclick="PreviousPage" disabled="@(_currentPage <= 1)" title="Previous page">‹</button>
+                <button class="pdf-nav-btn" @onclick="PreviousPage" disabled="@(_currentPage <= 1)" title="Previous page (Ctrl+←)">‹</button>
                 <span class="pdf-nav-label">@_currentPage / @_totalPages</span>
-                <button class="pdf-nav-btn" @onclick="NextPage" disabled="@(_currentPage >= _totalPages)" title="Next page">›</button>
+                <button class="pdf-nav-btn" @onclick="NextPage" disabled="@(_currentPage >= _totalPages)" title="Next page (Ctrl+→)">›</button>
             </div>
         }
         <span class="pdf-viewer-info">
@@ -71,6 +71,7 @@
     public string? Height { get; set; }
 
     private IJSObjectReference? _module;
+    private DotNetObjectReference<PdfViewer>? _dotNetRef;
     private readonly string _containerId = $"pdf-viewer-{Guid.NewGuid():N}";
     private int _totalPages;
     private int _currentPage = 1;
@@ -90,6 +91,7 @@
         {
             _module = await JS.InvokeAsync<IJSObjectReference>(
                 "import", "./js/pdfViewerInterop.js");
+            _dotNetRef = DotNetObjectReference.Create(this);
             _moduleLoaded = true;
 
             if (PDFData is { Length: > 0 } || !string.IsNullOrEmpty(PDFFileName))
@@ -149,12 +151,12 @@
             if (PDFData is { Length: > 0 })
             {
                 _totalPages = await _module.InvokeAsync<int>(
-                    "initializeFromData", _containerId, PDFData, GetZoomValue(), GetRotation(), GetDisplayMode());
+                    "initializeFromData", _containerId, PDFData, GetZoomValue(), GetRotation(), GetDisplayMode(), _dotNetRef);
             }
             else
             {
                 _totalPages = await _module.InvokeAsync<int>(
-                    "initialize", _containerId, PDFFileName, GetZoomValue(), GetRotation(), GetDisplayMode());
+                    "initialize", _containerId, PDFFileName, GetZoomValue(), GetRotation(), GetDisplayMode(), _dotNetRef);
             }
         }
         catch (Exception ex)
@@ -168,6 +170,17 @@
             _isLoading = false;
             StateHasChanged();
         }
+    }
+
+    /// <summary>
+    /// Called from JavaScript when the user navigates pages via keyboard (Ctrl+Arrow).
+    /// Updates the Blazor-side page counter so the toolbar stays in sync.
+    /// </summary>
+    [JSInvokable]
+    public void OnPageChangedFromJs(int newPage)
+    {
+        _currentPage = newPage;
+        StateHasChanged();
     }
 
     private async Task UpdateViewAsync()
@@ -198,6 +211,10 @@
         try
         {
             await _module.InvokeVoidAsync("goToPage", _containerId, _currentPage);
+
+            // Refocus the PDF container so arrow keys keep working
+            // after clicking a toolbar button (which steals focus)
+            await _module.InvokeVoidAsync("focusContainer", _containerId);
         }
         catch (Exception ex)
         {
@@ -240,5 +257,8 @@
 
             await _module.DisposeAsync();
         }
+
+        // Dispose the .NET object reference to prevent memory leaks
+        _dotNetRef?.Dispose();
     }
 }

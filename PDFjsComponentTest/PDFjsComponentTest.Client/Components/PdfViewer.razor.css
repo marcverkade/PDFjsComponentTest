@@ -89,3 +89,37 @@
     min-width: 0;
     min-height: 0;
 }
+
+.pdf-toolbar-protected {
+    font-size: 0.8rem;
+    color: #c0392b;
+    font-weight: 600;
+    white-space: nowrap;
+    user-select: none;
+}
+
+.pdf-nav-input {
+    width: 3.5em;
+    padding: 1px 4px;
+    border: 1px solid #bbb;
+    border-radius: 3px;
+    font-size: 0.875rem;
+    color: #333;
+    text-align: center;
+    background: #fff;
+    /* Remove the default number input spinner arrows for a cleaner look */
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+
+.pdf-nav-input::-webkit-inner-spin-button,
+.pdf-nav-input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.pdf-nav-input:focus {
+    outline: 2px solid #4a90d9;
+    outline-offset: -1px;
+    border-color: #4a90d9;
+}

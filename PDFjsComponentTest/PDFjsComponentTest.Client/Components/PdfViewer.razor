@@ -10,11 +10,21 @@
             @if (DisplayMode == PdfDisplayMode.SinglePage && _totalPages > 1)
             {
                 <div class="pdf-viewer-nav">
-                    <button class="pdf-nav-btn" @onclick="FirstPage" disabled="@(_currentPage <= 1)" title="First page">⟨⟨</button>
-                    <button class="pdf-nav-btn" @onclick="PreviousPage" disabled="@(_currentPage <= 1)" title="Previous page (Ctrl+←)">‹</button>
-                    <span class="pdf-nav-label">@_currentPage / @_totalPages</span>
-                    <button class="pdf-nav-btn" @onclick="NextPage" disabled="@(_currentPage >= _totalPages)" title="Next page (Ctrl+→)">›</button>
-                    <button class="pdf-nav-btn" @onclick="LastPage" disabled="@(_currentPage >= _totalPages)" title="Last page">⟩⟩</button>
+                    <button class="pdf-nav-btn" tabindex="-1" @onclick="FirstPage" disabled="@(_currentPage <= 1)" title="First page">⟨⟨</button>
+                    <button class="pdf-nav-btn" tabindex="-1" @onclick="PreviousPage" disabled="@(_currentPage <= 1)" title="Previous page (Ctrl+←)">‹</button>
+                    <span class="pdf-nav-label">
+                        <input type="number"
+                               class="pdf-nav-input"
+                               tabindex="-1"
+                               min="1"
+                               max="@_totalPages"
+                               value="@_currentPage"
+                               @onchange="OnPageInputChanged"
+                               @onkeydown="OnPageInputKeyDown"
+                               title="Type a page number and press Enter" /> / @_totalPages
+                    </span>
+                    <button class="pdf-nav-btn" tabindex="-1" @onclick="NextPage" disabled="@(_currentPage >= _totalPages)" title="Next page (Ctrl+→)">›</button>
+                    <button class="pdf-nav-btn" tabindex="-1" @onclick="LastPage" disabled="@(_currentPage >= _totalPages)" title="Last page">⟩⟩</button>
                 </div>
             }
             else if (DisplayMode == PdfDisplayMode.Continuous)
@@ -36,6 +46,14 @@
 
             @* ── Display mode ── *@
             <span class="pdf-toolbar-item">@(DisplayMode == PdfDisplayMode.SinglePage ? "Single" : "Continuous")</span>
+
+            @if (PreventDownload || PreventPrinting)
+            {
+                <span class="pdf-toolbar-separator">|</span>
+                <span class="pdf-toolbar-protected" title="@GetProtectionTooltip()">
+                    🔒 Protected
+                </span>
+            }
         }
         else if (!string.IsNullOrEmpty(_errorMessage))
         {
@@ -109,6 +127,20 @@
     [Parameter]
     public double ZoomRate { get; set; } = 0.25;
 
+    /// <summary>
+    /// When true, prevents downloading/saving the PDF. Blocks the browser
+    /// context menu on the viewer (including long-press on mobile) and
+    /// disables the download API methods.
+    /// </summary>
+    [Parameter]
+    public bool PreventDownload { get; set; }
+
+    /// <summary>
+    /// When true, prevents printing the PDF. Disables the print API methods.
+    /// </summary>
+    [Parameter]
+    public bool PreventPrinting { get; set; }
+
     // ── Private state ───────────────────────────────────────────────────
 
     private IJSObjectReference? _module;
@@ -141,6 +173,7 @@
     private PdfZoom _prevZoom;
     private PdfOrientation _prevOrientation;
     private PdfDisplayMode _prevDisplayMode;
+    private bool _prevPreventDownload;
 
     // ── Lifecycle ───────────────────────────────────────────────────────
 
@@ -169,6 +202,7 @@
             _prevZoom = ZoomPercentage;
             _prevOrientation = Orientation;
             _prevDisplayMode = DisplayMode;
+            _prevPreventDownload = PreventDownload;
             return;
         }
 
@@ -183,6 +217,7 @@
             _prevZoom = ZoomPercentage;
             _prevOrientation = Orientation;
             _prevDisplayMode = DisplayMode;
+            _prevPreventDownload = PreventDownload;
             _currentPage = 1;
             await LoadPdfAsync();
         }
@@ -192,6 +227,16 @@
             _prevOrientation = Orientation;
             _prevDisplayMode = DisplayMode;
             await UpdateViewAsync();
+        }
+
+        // Update context menu protection when PreventDownload changes
+        if (_prevPreventDownload != PreventDownload)
+        {
+            _prevPreventDownload = PreventDownload;
+            if (_module is not null)
+            {
+                await _module.InvokeVoidAsync("setContextMenuBlocked", _containerId, PreventDownload);
+            }
         }
     }
 
@@ -223,6 +268,13 @@
                     GetZoomValue(), GetRotation(), GetDisplayMode(),
                     _dotNetRef, MinZoom, MaxZoom);
             }
+
+            // Apply context menu protection based on PreventDownload
+            await _module.InvokeVoidAsync("setContextMenuBlocked", _containerId, PreventDownload);
+
+            // Auto-focus the PDF scroll container so arrow keys work
+            // immediately without requiring the user to click first
+            await _module.InvokeVoidAsync("focusContainer", _containerId);
         }
         catch (Exception ex)
         {
@@ -313,6 +365,35 @@
 
     private Task LastPage() => GoToPageAsync(_totalPages);
 
+    /// <summary>
+    /// Handle direct page number input. Navigates when the user changes
+    /// the value and the input loses focus (onchange).
+    /// </summary>
+    private Task OnPageInputChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var page))
+        {
+            return GoToPageAsync(Math.Clamp(page, 1, _totalPages));
+        }
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Allow pressing Enter in the page input to navigate immediately
+    /// without needing to tab out of the field.
+    /// </summary>
+    private async Task OnPageInputKeyDown(KeyboardEventArgs e)
+    {
+        // Enter is handled via onchange which fires on blur;
+        // we just need to blur the input to trigger it.
+        if (e.Key == "Enter" && _module is not null)
+        {
+            // Refocus the PDF container — this blurs the input (triggering
+            // onchange) and restores arrow-key panning in one step.
+            await _module.InvokeVoidAsync("focusContainer", _containerId);
+        }
+    }
+
     // ── Public methods (accessible via @ref) ────────────────────────────
 
     /// <summary>
@@ -393,10 +474,11 @@
         }
     }
 
-    /// <summary>Print the entire PDF document.</summary>
+    /// <summary>Print the entire PDF document. Blocked when PreventPrinting is true.</summary>
     public async Task PrintAsync()
     {
         if (_module is null || _totalPages == 0) return;
+        if (PreventPrinting) return;
 
         try
         {
@@ -409,10 +491,11 @@
         }
     }
 
-    /// <summary>Print a range of pages (1-based, inclusive).</summary>
+    /// <summary>Print a range of pages (1-based, inclusive). Blocked when PreventPrinting is true.</summary>
     public async Task PrintAsync(int pageStart, int pageEnd)
     {
         if (_module is null || _totalPages == 0) return;
+        if (PreventPrinting) return;
 
         var start = Math.Clamp(pageStart, 1, _totalPages);
         var end = Math.Clamp(pageEnd, start, _totalPages);
@@ -448,11 +531,12 @@
     }
 
     /// <summary>
-    /// Download the entire PDF document as a file.
+    /// Download the entire PDF document as a file. Blocked when PreventDownload is true.
     /// </summary>
     public async Task DownloadAllAsync(string? fileName = null)
     {
         if (_module is null || _totalPages == 0) return;
+        if (PreventDownload) return;
 
         try
         {
@@ -466,11 +550,12 @@
     }
 
     /// <summary>
-    /// Download the current page as a PNG image.
+    /// Download the current page as a PNG image. Blocked when PreventDownload is true.
     /// </summary>
     public async Task DownloadCurrentPageAsync(string? fileName = null)
     {
         if (_module is null || _totalPages == 0) return;
+        if (PreventDownload) return;
 
         try
         {
@@ -500,6 +585,16 @@
     private int GetRotation() => Orientation == PdfOrientation.Landscape ? 90 : 0;
 
     private string GetDisplayMode() => DisplayMode == PdfDisplayMode.SinglePage ? "single" : "continuous";
+
+    /// <summary>
+    /// Gets the tooltip text for the protection indicator.
+    /// </summary>
+    private string GetProtectionTooltip()
+    {
+        if (PreventDownload && PreventPrinting) return "Download and printing are disabled";
+        if (PreventDownload) return "Download is disabled";
+        return "Printing is disabled";
+    }
 
     // ── Dispose ──────────────────────────────────────────────────────────
 

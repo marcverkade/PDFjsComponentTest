@@ -18,7 +18,8 @@ else
     <div class="mb-3 d-flex align-items-end gap-3 flex-wrap">
         <div>
             <label class="form-label">Select a PDF file:</label>
-            <InputFile OnChange="@OnFileSelected" accept=".pdf" class="form-control" style="max-width: 400px;" />
+            <InputFile OnChange="@OnFileSelected" accept=".pdf" class="form-control" style="max-width: 400px;"
+                       tabindex="-1" />
             @if (!string.IsNullOrEmpty(fileErrorMessage))
             {
                 <small class="text-danger">@fileErrorMessage</small>
@@ -27,7 +28,7 @@ else
 
         <div>
             <label class="form-label">Zoom:</label>
-            <select class="form-select w-auto" @bind="selectedZoom">
+            <select class="form-select w-auto" @bind="selectedZoom" tabindex="-1">
                 <option value="@PdfZoom.Percent25">25%</option>
                 <option value="@PdfZoom.Percent50">50%</option>
                 <option value="@PdfZoom.Percent100">100%</option>
@@ -40,7 +41,7 @@ else
 
         <div>
             <label class="form-label">Orientation:</label>
-            <select class="form-select w-auto" @bind="selectedOrientation">
+            <select class="form-select w-auto" @bind="selectedOrientation" tabindex="-1">
                 <option value="@PdfOrientation.Portrait">Portrait</option>
                 <option value="@PdfOrientation.Landscape">Landscape</option>
             </select>
@@ -48,7 +49,7 @@ else
 
         <div>
             <label class="form-label">Display:</label>
-            <select class="form-select w-auto" @bind="selectedDisplayMode">
+            <select class="form-select w-auto" @bind="selectedDisplayMode" tabindex="-1">
                 <option value="@PdfDisplayMode.SinglePage">Single Page</option>
                 <option value="@PdfDisplayMode.Continuous">Continuous</option>
             </select>
@@ -59,11 +60,13 @@ else
             <label class="form-label">Search:</label>
             <div class="input-group input-group-sm" style="width: 300px;">
                 <input type="text" class="form-control" @bind="searchQuery" @bind:event="oninput"
-                       placeholder="Search text in PDF..." @onkeydown="OnSearchKeyDown" />
-                <button class="btn btn-outline-success" @onclick="OnSearch" title="Search and highlight">
+                       placeholder="Search text in PDF..." @onkeydown="OnSearchKeyDown" tabindex="-1" />
+                <button class="btn btn-outline-success" @onclick="OnSearch" title="Search and highlight"
+                        tabindex="-1">
                     🔎
                 </button>
-                <button class="btn btn-outline-secondary" @onclick="OnClearSearch" title="Clear highlights">
+                <button class="btn btn-outline-secondary" @onclick="OnClearSearch" title="Clear highlights"
+                        tabindex="-1">
                     ✕
                 </button>
             </div>
@@ -82,14 +85,17 @@ else
     {
         <div class="mb-3 d-flex align-items-center gap-2 flex-wrap">
             @* Zoom controls — uses the custom zoom step amount *@
-            <button class="btn btn-outline-secondary btn-sm" @onclick="OnZoomOut" title="Zoom out by custom amount">
+            <button class="btn btn-outline-secondary btn-sm" @onclick="OnZoomOut" title="Zoom out by custom amount"
+                    tabindex="-1">
                 🔍− Zoom Out
             </button>
-            <button class="btn btn-outline-secondary btn-sm" @onclick="OnZoomIn" title="Zoom in by custom amount">
+            <button class="btn btn-outline-secondary btn-sm" @onclick="OnZoomIn" title="Zoom in by custom amount"
+                    tabindex="-1">
                 🔍+ Zoom In
             </button>
 
-            <button class="btn btn-outline-warning btn-sm" @onclick="OnResetZoom" title="Reset zoom to full width">
+            <button class="btn btn-outline-warning btn-sm" @onclick="OnResetZoom" title="Reset zoom to full width"
+                    tabindex="-1">
                 ↔ Fit Width
             </button>
 
@@ -98,34 +104,58 @@ else
             @* Custom zoom amount *@
             <div class="input-group input-group-sm" style="width: 200px;">
                 <input type="number" class="form-control" @bind="customZoomAmount"
-                       min="0.05" max="5.0" step="0.05" placeholder="Amount" />
-                <button class="btn btn-outline-secondary" @onclick="IncreaseZoomStep" title="Increase zoom step by 0.05">+</button>
-                <button class="btn btn-outline-secondary" @onclick="DecreaseZoomStep" title="Decrease zoom step by 0.05">−</button>
+                       min="0.05" max="5.0" step="0.05" placeholder="Amount" tabindex="-1" />
+                <button class="btn btn-outline-secondary" @onclick="IncreaseZoomStep" title="Increase zoom step by 0.05"
+                        tabindex="-1">+</button>
+                <button class="btn btn-outline-secondary" @onclick="DecreaseZoomStep" title="Decrease zoom step by 0.05"
+                        tabindex="-1">−</button>
             </div>
 
             <span class="text-muted mx-1">|</span>
 
-            @* Print controls *@
-            <button class="btn btn-outline-primary btn-sm" @onclick="OnPrintAll" title="Print all pages">
+            @* Print controls — disabled when printing is prevented *@
+            <button class="btn btn-outline-primary btn-sm" @onclick="OnPrintAll" disabled="@preventPrinting"
+                    title="@(preventPrinting ? "Printing is disabled" : "Print all pages")" tabindex="-1">
                 🖨 Print All
             </button>
 
             <div class="input-group input-group-sm" style="width: 250px;">
-                <input type="number" class="form-control" @bind="printStartPage" min="1" placeholder="From" />
-                <input type="number" class="form-control" @bind="printEndPage" min="1" placeholder="To" />
-                <button class="btn btn-outline-primary" @onclick="OnPrintRange" title="Print page range">
+                <input type="number" class="form-control" @bind="printStartPage" min="1" placeholder="From"
+                       disabled="@preventPrinting" tabindex="-1" />
+                <input type="number" class="form-control" @bind="printEndPage" min="1" placeholder="To"
+                       disabled="@preventPrinting" tabindex="-1" />
+                <button class="btn btn-outline-primary" @onclick="OnPrintRange" disabled="@preventPrinting"
+                        title="@(preventPrinting ? "Printing is disabled" : "Print page range")" tabindex="-1">
                     🖨 Range
                 </button>
             </div>
 
             <span class="text-muted mx-1">|</span>
 
-            @* Download controls *@
-            <button class="btn btn-outline-success btn-sm" @onclick="OnDownloadAll" title="Download entire PDF">
+            @* Download controls — disabled when download is prevented *@
+            <button class="btn btn-outline-success btn-sm" @onclick="OnDownloadAll" disabled="@preventDownload"
+                    title="@(preventDownload ? "Download is disabled" : "Download entire PDF")" tabindex="-1">
                 💾 Download All
             </button>
-            <button class="btn btn-outline-success btn-sm" @onclick="OnDownloadCurrentPage" title="Download current page as PNG">
+            <button class="btn btn-outline-success btn-sm" @onclick="OnDownloadCurrentPage" disabled="@preventDownload"
+                    title="@(preventDownload ? "Download is disabled" : "Download current page as PNG")" tabindex="-1">
                 💾 Current Page
+            </button>
+
+            <span class="text-muted mx-1">|</span>
+
+            @* Protection toggle buttons *@
+            <button class="btn btn-sm @(preventDownload ? "btn-danger" : "btn-outline-danger")"
+                    @onclick="TogglePreventDownload"
+                    title="@(preventDownload ? "Download protection ON — click to disable" : "Download protection OFF — click to enable")"
+                    tabindex="-1">
+                @(preventDownload ? "🔒 Download Off" : "🔓 Download On")
+            </button>
+            <button class="btn btn-sm @(preventPrinting ? "btn-danger" : "btn-outline-danger")"
+                    @onclick="TogglePreventPrinting"
+                    title="@(preventPrinting ? "Print protection ON — click to disable" : "Print protection OFF — click to enable")"
+                    tabindex="-1">
+                @(preventPrinting ? "🔒 Print Off" : "🔓 Print On")
             </button>
         </div>
 
@@ -137,6 +167,8 @@ else
                        ZoomPercentage="@selectedZoom"
                        Orientation="@selectedOrientation"
                        DisplayMode="@selectedDisplayMode"
+                       PreventDownload="@preventDownload"
+                       PreventPrinting="@preventPrinting"
                        MinZoom="0.1"
                        MaxZoom="5.0"
                        ZoomRate="0.25"
@@ -149,6 +181,8 @@ else
                        ZoomPercentage="@selectedZoom"
                        Orientation="@selectedOrientation"
                        DisplayMode="@selectedDisplayMode"
+                       PreventDownload="@preventDownload"
+                       PreventPrinting="@preventPrinting"
                        MinZoom="0.1"
                        MaxZoom="5.0"
                        ZoomRate="0.25"
@@ -192,6 +226,10 @@ else
 
     // ── Error/info message for file selection ──
     private string? fileErrorMessage;
+
+    // ── Protection toggles ──
+    private bool preventDownload;
+    private bool preventPrinting;
 
     protected override void OnAfterRender(bool firstRender)
     {
@@ -298,6 +336,18 @@ else
     {
         if (pdfViewerRef is not null)
             await pdfViewerRef.DownloadCurrentPageAsync();
+    }
+
+    // ── Protection toggle handlers ──
+
+    private void TogglePreventDownload()
+    {
+        preventDownload = !preventDownload;
+    }
+
+    private void TogglePreventPrinting()
+    {
+        preventPrinting = !preventPrinting;
     }
 
     // ── Helpers ──

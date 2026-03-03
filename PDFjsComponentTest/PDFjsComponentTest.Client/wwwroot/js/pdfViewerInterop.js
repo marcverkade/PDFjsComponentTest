@@ -1144,11 +1144,11 @@ export function disposePdfViewer(containerId) {
         if (viewer._wheelCleanup) viewer._wheelCleanup();
         if (viewer._dragCleanup) viewer._dragCleanup();
         if (viewer._keyboardCleanup) viewer._keyboardCleanup();
+        if (viewer._contextMenuCleanup) viewer._contextMenuCleanup();
         if (viewer._resizeObserver) viewer._resizeObserver.disconnect();
         viewer.pdf.destroy();
         delete viewers[containerId];
     }
-
     const container = document.getElementById(containerId);
     if (container) container.innerHTML = '';
 }
@@ -1797,4 +1797,59 @@ function triggerDownload(blob, fileName) {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
     }, 100);
+}
+
+// ── Context menu protection ─────────────────────────────────────────────
+
+/**
+ * Block or unblock the browser context menu on the PDF viewer container.
+ *
+ * When blocked, right-click and long-press (mobile) context menus are
+ * suppressed, preventing "Save image", "Share", and similar options that
+ * could allow the user to extract the PDF content.
+ *
+ * Also applies CSS to disable image dragging and text selection within
+ * the viewer, which are additional vectors for content extraction.
+ *
+ * @param {string}  containerId - The container element ID
+ * @param {boolean} blocked     - true to block, false to unblock
+ */
+export function setContextMenuBlocked(containerId, blocked) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    const viewer = viewers[containerId];
+    if (!viewer) return;
+
+    // Clean up any existing handler first
+    if (viewer._contextMenuCleanup) {
+        viewer._contextMenuCleanup();
+        viewer._contextMenuCleanup = null;
+    }
+
+    if (blocked) {
+        // Prevent the context menu from appearing
+        function onContextMenu(e) {
+            e.preventDefault();
+            return false;
+        }
+
+        // Prevent long-press from triggering callout/share on iOS
+        container.style.webkitTouchCallout = 'none';
+        // Prevent drag-to-save on images/canvases
+        container.style.webkitUserDrag = 'none';
+        // Prevent text/image selection as an extraction vector
+        container.style.userSelect = 'none';
+
+        container.addEventListener('contextmenu', onContextMenu);
+
+        // Store cleanup so it can be removed when protection is toggled off
+        // or the viewer is disposed
+        viewer._contextMenuCleanup = () => {
+            container.removeEventListener('contextmenu', onContextMenu);
+            container.style.webkitTouchCallout = '';
+            container.style.webkitUserDrag = '';
+            container.style.userSelect = '';
+        };
+    }
 }

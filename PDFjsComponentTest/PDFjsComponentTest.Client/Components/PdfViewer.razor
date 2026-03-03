@@ -1,7 +1,7 @@
 @implements IAsyncDisposable
 @inject IJSRuntime JS
 
-<div class="pdf-viewer-container"
+<div class="pdf-viewer-container @(CssClass ?? "")"
      style="width: @(Width ?? "100%"); @(Height is not null ? $"height: {Height};" : "")">
     <div class="pdf-viewer-toolbar">
         @if (DisplayMode == PdfDisplayMode.SinglePage && _totalPages > 1)
@@ -21,11 +21,11 @@
             {
                 @if (DisplayMode == PdfDisplayMode.Continuous)
                 {
-                    <span>@_totalPages page(s) | Zoom: @ZoomPercentage | @Orientation</span>
+                    <span>@_totalPages page(s) | @CurrentScaleDisplay | @Orientation</span>
                 }
                 else
                 {
-                    <span>Zoom: @ZoomPercentage | @Orientation</span>
+                    <span>@CurrentScaleDisplay | @Orientation</span>
                 }
             }
             else if (_isLoading)
@@ -42,6 +42,8 @@
 </div>
 
 @code {
+    // ── Parameters ──────────────────────────────────────────────────────
+
     /// <summary>URL or relative path to a PDF file. Ignored when PDFData is provided.</summary>
     [Parameter]
     public string PDFFileName { get; set; } = string.Empty;
@@ -70,6 +72,33 @@
     [Parameter]
     public string? Height { get; set; }
 
+    /// <summary>Additional CSS class(es) to apply to the outer container.</summary>
+    [Parameter]
+    public string? CssClass { get; set; }
+
+    /// <summary>
+    /// Maximum zoom level (0.0–10.0, where 1.0 = 100%).
+    /// Clamps programmatic and gesture zoom. Default 4.0 (400%).
+    /// </summary>
+    [Parameter]
+    public double MaxZoom { get; set; } = 4.0;
+
+    /// <summary>
+    /// Minimum zoom level (0.0–10.0, where 1.0 = 100%).
+    /// Clamps programmatic and gesture zoom. Default 0.5 (50%).
+    /// </summary>
+    [Parameter]
+    public double MinZoom { get; set; } = 0.5;
+
+    /// <summary>
+    /// Zoom step size for ZoomIn()/ZoomOut() without arguments (0.0–10.0).
+    /// Default 0.25 (25%).
+    /// </summary>
+    [Parameter]
+    public double ZoomRate { get; set; } = 0.25;
+
+    // ── Private state ───────────────────────────────────────────────────
+
     private IJSObjectReference? _module;
     private DotNetObjectReference<PdfViewer>? _dotNetRef;
     private readonly string _containerId = $"pdf-viewer-{Guid.NewGuid():N}";
@@ -79,11 +108,29 @@
     private bool _moduleLoaded;
     private string? _errorMessage;
 
+    /// <summary>
+    /// Current effective zoom scale (0.0–10.0). Tracks the actual numeric
+    /// zoom applied, including pinch/wheel overrides. Null until first render.
+    /// </summary>
+    private double? _currentScale;
+
+    /// <summary>
+    /// Formatted display string for the current zoom factor.
+    /// Shows the actual effective percentage (e.g. "Zoom: 125%"),
+    /// reflecting pinch, wheel, and programmatic zoom changes.
+    /// </summary>
+    private string CurrentScaleDisplay =>
+        _currentScale.HasValue
+            ? $"Zoom: {_currentScale.Value * 100:F0}%"
+            : $"Zoom: {ZoomPercentage}";
+
     private string _prevPdf = string.Empty;
     private byte[]? _prevData;
     private PdfZoom _prevZoom;
     private PdfOrientation _prevOrientation;
     private PdfDisplayMode _prevDisplayMode;
+
+    // ── Lifecycle ───────────────────────────────────────────────────────
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -136,6 +183,8 @@
         }
     }
 
+    // ── PDF loading ─────────────────────────────────────────────────────
+
     private async Task LoadPdfAsync()
     {
         if (_module is null) return;
@@ -151,12 +200,16 @@
             if (PDFData is { Length: > 0 })
             {
                 _totalPages = await _module.InvokeAsync<int>(
-                    "initializeFromData", _containerId, PDFData, GetZoomValue(), GetRotation(), GetDisplayMode(), _dotNetRef);
+                    "initializeFromData", _containerId, PDFData,
+                    GetZoomValue(), GetRotation(), GetDisplayMode(),
+                    _dotNetRef, MinZoom, MaxZoom);
             }
             else
             {
                 _totalPages = await _module.InvokeAsync<int>(
-                    "initialize", _containerId, PDFFileName, GetZoomValue(), GetRotation(), GetDisplayMode(), _dotNetRef);
+                    "initialize", _containerId, PDFFileName,
+                    GetZoomValue(), GetRotation(), GetDisplayMode(),
+                    _dotNetRef, MinZoom, MaxZoom);
             }
         }
         catch (Exception ex)
@@ -172,9 +225,11 @@
         }
     }
 
+    // ── JS → Blazor callbacks ───────────────────────────────────────────
+
     /// <summary>
-    /// Called from JavaScript when the user navigates pages via keyboard (Ctrl+Arrow).
-    /// Updates the Blazor-side page counter so the toolbar stays in sync.
+    /// Called from JavaScript when the user navigates pages via keyboard (Ctrl+Arrow)
+    /// or swipe gesture. Updates the Blazor-side page counter so the toolbar stays in sync.
     /// </summary>
     [JSInvokable]
     public void OnPageChangedFromJs(int newPage)
@@ -182,6 +237,19 @@
         _currentPage = newPage;
         StateHasChanged();
     }
+
+    /// <summary>
+    /// Called from JavaScript after each render to report the effective numeric scale.
+    /// Keeps the C# side in sync with pinch/wheel zoom changes and updates the toolbar.
+    /// </summary>
+    [JSInvokable]
+    public void OnScaleChangedFromJs(double scale)
+    {
+        _currentScale = scale;
+        StateHasChanged();
+    }
+
+    // ── View updates ────────────────────────────────────────────────────
 
     private async Task UpdateViewAsync()
     {
@@ -229,6 +297,142 @@
 
     private Task NextPage() => GoToPageAsync(_currentPage + 1);
 
+    // ── Public methods (accessible via @ref) ────────────────────────────
+
+    /// <summary>
+    /// The current effective zoom scale as a ratio (e.g. 1.25 = 125%).
+    /// Reflects the actual zoom including pinch/wheel overrides.
+    /// Null until the first render completes.
+    /// </summary>
+    public double? CurrentScale => _currentScale;
+
+    /// <summary>Zoom in by the configured <see cref="ZoomRate"/>.</summary>
+    public Task ZoomInAsync() => ZoomInAsync((decimal)ZoomRate);
+
+    /// <summary>Zoom in by a custom amount (0.0–10.0).</summary>
+    public async Task ZoomInAsync(decimal zoomAmount)
+    {
+        if (_module is null || _totalPages == 0) return;
+
+        try
+        {
+            await _module.InvokeVoidAsync(
+                "zoomBy", _containerId, (double)zoomAmount, MinZoom, MaxZoom);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Zoom in failed: {ex.Message}";
+            Console.WriteLine($"PdfViewer error: {ex}");
+        }
+    }
+
+    /// <summary>Zoom out by the configured <see cref="ZoomRate"/>.</summary>
+    public Task ZoomOutAsync() => ZoomOutAsync((decimal)ZoomRate);
+
+    /// <summary>Zoom out by a custom amount (0.0–10.0).</summary>
+    public async Task ZoomOutAsync(decimal zoomAmount)
+    {
+        if (_module is null || _totalPages == 0) return;
+
+        try
+        {
+            await _module.InvokeVoidAsync(
+                "zoomBy", _containerId, -(double)zoomAmount, MinZoom, MaxZoom);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Zoom out failed: {ex.Message}";
+            Console.WriteLine($"PdfViewer error: {ex}");
+        }
+    }
+
+    /// <summary>
+    /// Reset zoom to a specific mode, clearing any pinch/wheel zoom override.
+    /// Accepts a <see cref="PdfZoom"/> value to reset to (e.g. PdfZoom.FullWidth).
+    /// </summary>
+    public async Task SetZoomAsync(PdfZoom zoom)
+    {
+        if (_module is null || _totalPages == 0) return;
+
+        try
+        {
+            // Convert the enum to the JS zoom value format
+            var zoomValue = zoom switch
+            {
+                PdfZoom.Percent25 => (object)0.25,
+                PdfZoom.Percent50 => 0.5,
+                PdfZoom.Percent100 => 1.0,
+                PdfZoom.Percent150 => 1.5,
+                PdfZoom.Percent200 => 2.0,
+                PdfZoom.FullPage => "page-fit",
+                PdfZoom.FullWidth => "page-width",
+                _ => 1.0
+            };
+            await _module.InvokeVoidAsync("resetZoom", _containerId, zoomValue);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Reset zoom failed: {ex.Message}";
+            Console.WriteLine($"PdfViewer error: {ex}");
+        }
+    }
+
+    /// <summary>Print the entire PDF document.</summary>
+    public async Task PrintAsync()
+    {
+        if (_module is null || _totalPages == 0) return;
+
+        try
+        {
+            await _module.InvokeVoidAsync("printPdf", _containerId, 1, _totalPages);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Print failed: {ex.Message}";
+            Console.WriteLine($"PdfViewer error: {ex}");
+        }
+    }
+
+    /// <summary>Print a range of pages (1-based, inclusive).</summary>
+    public async Task PrintAsync(int pageStart, int pageEnd)
+    {
+        if (_module is null || _totalPages == 0) return;
+
+        var start = Math.Clamp(pageStart, 1, _totalPages);
+        var end = Math.Clamp(pageEnd, start, _totalPages);
+
+        try
+        {
+            await _module.InvokeVoidAsync("printPdf", _containerId, start, end);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Print failed: {ex.Message}";
+            Console.WriteLine($"PdfViewer error: {ex}");
+        }
+    }
+
+    /// <summary>
+    /// Search for text in the PDF and highlight all occurrences.
+    /// Pass null or empty string to clear highlights.
+    /// </summary>
+    public async Task SearchAsync(string? searchText)
+    {
+        if (_module is null || _totalPages == 0) return;
+
+        try
+        {
+            await _module.InvokeVoidAsync("searchText", _containerId, searchText ?? "");
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Search failed: {ex.Message}";
+            Console.WriteLine($"PdfViewer error: {ex}");
+        }
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────
+
     private object GetZoomValue() => ZoomPercentage switch
     {
         PdfZoom.Percent25 => 0.25,
@@ -244,6 +448,8 @@
     private int GetRotation() => Orientation == PdfOrientation.Landscape ? 90 : 0;
 
     private string GetDisplayMode() => DisplayMode == PdfDisplayMode.SinglePage ? "single" : "continuous";
+
+    // ── Dispose ──────────────────────────────────────────────────────────
 
     public async ValueTask DisposeAsync()
     {

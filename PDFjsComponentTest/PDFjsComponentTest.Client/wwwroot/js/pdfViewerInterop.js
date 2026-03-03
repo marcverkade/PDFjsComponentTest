@@ -252,6 +252,12 @@ async function renderPages(containerId) {
             const refPage = await pdf.getPage(startPage);
             viewer.baseScale = computeScale(refPage, viewer.zoomValue, container, rotation);
             viewer.currentScale = resolvedScale;
+
+            // Report the effective scale back to Blazor so the C# side
+            // stays in sync with pinch/wheel zoom changes.
+            if (viewer._dotNetRef) {
+                viewer._dotNetRef.invokeMethodAsync('OnScaleChangedFromJs', resolvedScale);
+            }
         } catch (err) {
             console.warn('[PdfViewer] Failed to cache base scale:', err);
         }
@@ -354,6 +360,10 @@ function setupTouchGestures(containerId) {
     const viewer = viewers[containerId];
     if (!viewer) return;
 
+    // Use at the top of setupTouchGestures, after getting viewer:
+    const lo = viewer.minScale ?? MIN_SCALE;
+    const hi = viewer.maxScale ?? MAX_SCALE;
+
     // ── Pinch state ──
     let isPinching = false;
     let pinchStartDist = 0;      // Distance between fingers at pinch start
@@ -448,7 +458,7 @@ function setupTouchGestures(containerId) {
 
         // Calculate new scale from finger distance ratio
         const dist = touchDist(e.touches[0], e.touches[1]);
-        const target = clamp(pinchStartScale * (dist / pinchStartDist), MIN_SCALE, MAX_SCALE);
+        const target = clamp(pinchStartScale * (dist / pinchStartDist), lo, hi);
         const cssRatio = target / pinchStartScale;
 
         // Track the moving midpoint so commitPinch uses end-of-gesture coords
@@ -485,7 +495,7 @@ function setupTouchGestures(containerId) {
             if (m) cssRatio = parseFloat(m[1]);
         }
 
-        const finalScale = clamp(pinchStartScale * cssRatio, MIN_SCALE, MAX_SCALE);
+        const finalScale = clamp(pinchStartScale * cssRatio, lo, hi);
 
         // If scale barely changed, treat it as a no-op (avoids unnecessary re-render)
         if (Math.abs(finalScale - pinchStartScale) < 0.005) {
@@ -552,7 +562,7 @@ function setupTouchGestures(containerId) {
             viewer.currentScale = null;
         } else {
             // Zoom in to DOUBLE_TAP_ZOOM × fit
-            viewer.pinchScale = clamp(fit * DOUBLE_TAP_ZOOM, MIN_SCALE, MAX_SCALE);
+            viewer.pinchScale = clamp(fit * DOUBLE_TAP_ZOOM, lo, hi);
         }
 
         await renderPages(containerId);
@@ -782,6 +792,10 @@ function setupWheelZoom(containerId) {
         if (!e.ctrlKey) return;   // Only zoom when Ctrl is held
         e.preventDefault();       // Prevent browser zoom
 
+        // Use the viewer's configurable zoom limits
+        const lo = viewer.minScale ?? MIN_SCALE;
+        const hi = viewer.maxScale ?? MAX_SCALE;
+
         const currentScale =
             viewer.pinchScale ?? viewer.currentScale ?? viewer.baseScale ?? 1.0;
 
@@ -812,7 +826,7 @@ function setupWheelZoom(containerId) {
 
         // Apply exponential zoom factor
         const factor = Math.exp(-e.deltaY * WHEEL_ZOOM_SPEED);
-        accumulatedScale = clamp(accumulatedScale * factor, MIN_SCALE, MAX_SCALE);
+        accumulatedScale = clamp(accumulatedScale * factor, lo, hi);
 
         // Apply CSS transform for instant visual feedback
         const cssRatio = accumulatedScale / baseScaleAtStart;
@@ -925,15 +939,19 @@ function createViewerState(pdf, zoomValue, rotation, displayMode) {
         currentScale: null,               // Cached: actual scale used in last render
         renderGeneration: 0,              // Incremented each render to cancel stale ones
         wrapper: null,                    // Reference to the current content wrapper div
+        minScale: 0.5,                    // Minimum zoom level (set from Blazor)
+        maxScale: 4.0,                    // Maximum zoom level (set from Blazor)
     };
 }
 
 /**
  * Initialize the PDF viewer from a URL.
  * @param {object} dotNetRef - DotNetObjectReference for calling back into Blazor.
+ * @param {number} minScale  - Minimum zoom level from Blazor.
+ * @param {number} maxScale  - Maximum zoom level from Blazor.
  * @returns {number} Total number of pages in the PDF.
  */
-export async function initialize(containerId, pdfUrl, zoomValue, rotation, displayMode, dotNetRef) {
+export async function initialize(containerId, pdfUrl, zoomValue, rotation, displayMode, dotNetRef, minScale, maxScale) {
     await ensurePdfjsLoaded();
 
     // Dispose any existing viewer for this container
@@ -946,8 +964,12 @@ export async function initialize(containerId, pdfUrl, zoomValue, rotation, displ
     }).promise;
 
     viewers[containerId] = createViewerState(pdf, zoomValue, rotation, displayMode);
+    const viewer = viewers[containerId];
     // Store the .NET reference for JS→Blazor callbacks (e.g. page navigation)
-    viewers[containerId]._dotNetRef = dotNetRef ?? null;
+    viewer._dotNetRef = dotNetRef ?? null;
+    // Apply min/max zoom limits from Blazor parameters
+    if (typeof minScale === 'number') viewer.minScale = minScale;
+    if (typeof maxScale === 'number') viewer.maxScale = maxScale;
     await renderPages(containerId);
     setupTouchGestures(containerId);
     setupWheelZoom(containerId);
@@ -960,9 +982,11 @@ export async function initialize(containerId, pdfUrl, zoomValue, rotation, displ
 /**
  * Initialize the PDF viewer from raw byte data (base64 string or byte array).
  * @param {object} dotNetRef - DotNetObjectReference for calling back into Blazor.
+ * @param {number} minScale  - Minimum zoom level from Blazor.
+ * @param {number} maxScale  - Maximum zoom level from Blazor.
  * @returns {number} Total number of pages in the PDF.
  */
-export async function initializeFromData(containerId, pdfData, zoomValue, rotation, displayMode, dotNetRef) {
+export async function initializeFromData(containerId, pdfData, zoomValue, rotation, displayMode, dotNetRef, minScale, maxScale) {
     await ensurePdfjsLoaded();
 
     // Dispose any existing viewer for this container
@@ -980,8 +1004,12 @@ export async function initializeFromData(containerId, pdfData, zoomValue, rotati
     }).promise;
 
     viewers[containerId] = createViewerState(pdf, zoomValue, rotation, displayMode);
+    const viewer = viewers[containerId];
     // Store the .NET reference for JS→Blazor callbacks (e.g. page navigation)
-    viewers[containerId]._dotNetRef = dotNetRef ?? null;
+    viewer._dotNetRef = dotNetRef ?? null;
+    // Apply min/max zoom limits from Blazor parameters
+    if (typeof minScale === 'number') viewer.minScale = minScale;
+    if (typeof maxScale === 'number') viewer.maxScale = maxScale;
     await renderPages(containerId);
     setupTouchGestures(containerId);
     setupWheelZoom(containerId);
@@ -1164,4 +1192,353 @@ function navigateToPage(containerId, newPage) {
             }
         })
         .catch(err => console.warn('[PdfViewer] Page nav failed:', err));
+}
+
+// ── Programmatic zoom ───────────────────────────────────────────────────
+
+/**
+ * Reset zoom to a specific mode ('page-width', 'page-fit') or numeric scale.
+ * Clears any pinch/wheel zoom override and re-renders with the given zoom value.
+ *
+ * @param {string}        containerId - The container element ID
+ * @param {string|number} zoomValue   - 'page-width', 'page-fit', or a numeric scale
+ */
+export async function resetZoom(containerId, zoomValue) {
+    const viewer = viewers[containerId];
+    if (!viewer) return;
+
+    // Clear any manual pinch/wheel zoom so the new zoomValue takes effect
+    viewer.zoomValue = zoomValue;
+    viewer.pinchScale = null;
+    viewer.baseScale = null;
+    viewer.currentScale = null;
+
+    await renderPages(containerId);
+
+    // Reset scroll to top-left after zoom reset
+    const container = document.getElementById(containerId);
+    if (container) {
+        container.scrollLeft = 0;
+        container.scrollTop = 0;
+    }
+}
+
+/**
+ * Adjust the current zoom by a signed delta.
+ * Positive delta zooms in, negative zooms out.
+ * Clamps the result to [minScale, maxScale].
+ *
+ * @param {string} containerId - The container element ID
+ * @param {number} delta       - Amount to add to current scale (e.g. 0.25 = +25%)
+ * @param {number} minScale    - Minimum allowed scale
+ * @param {number} maxScale    - Maximum allowed scale
+ */
+export async function zoomBy(containerId, delta, minScale, maxScale) {
+    const viewer = viewers[containerId];
+    if (!viewer) return;
+
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    // Determine the current effective scale
+    const current =
+        viewer.pinchScale ?? viewer.currentScale ?? viewer.baseScale ?? 1.0;
+
+    const newScale = clamp(current + delta, minScale, maxScale);
+
+    // Skip if the scale didn't actually change (already at limit)
+    if (Math.abs(newScale - current) < 0.001) return;
+
+    // Apply the new scale as a pinch override and re-render
+    viewer.pinchScale = newScale;
+    await renderPages(containerId);
+
+    // Scroll to top-left after programmatic zoom
+    container.scrollLeft = 0;
+    container.scrollTop = 0;
+}
+
+// ── Print ───────────────────────────────────────────────────────────────
+
+/**
+ * Print a range of PDF pages by rendering them into a hidden iframe
+ * and triggering the browser's print dialog.
+ *
+ * Each page is rendered to a canvas at 2× scale for print-quality output,
+ * converted to a data URL, and placed as an <img> in the print document.
+ *
+ * @param {string} containerId - The container element ID
+ * @param {number} startPage   - First page to print (1-based)
+ * @param {number} endPage     - Last page to print (1-based, inclusive)
+ */
+export async function printPdf(containerId, startPage, endPage) {
+    const viewer = viewers[containerId];
+    if (!viewer) return;
+
+    const { pdf, rotation } = viewer;
+
+    // Render all requested pages to data URLs at print-quality resolution
+    const pageImages = [];
+    for (let i = startPage; i <= endPage; i++) {
+        const page = await pdf.getPage(i);
+        // Use 2× scale for crisp print output
+        const printScale = 2.0;
+        const vp = page.getViewport({ scale: printScale, rotation });
+
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) continue;
+
+        canvas.width = Math.floor(vp.width);
+        canvas.height = Math.floor(vp.height);
+
+        await page.render({ canvasContext: ctx, viewport: vp }).promise;
+        pageImages.push({
+            dataUrl: canvas.toDataURL('image/png'),
+            width: vp.width,
+            height: vp.height,
+        });
+    }
+
+    if (pageImages.length === 0) return;
+
+    // Create a hidden iframe for printing
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'position:fixed;top:-10000px;left:-10000px;width:0;height:0';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!doc) {
+        document.body.removeChild(iframe);
+        return;
+    }
+
+    // Build the print document with each page as a full-page image
+    doc.open();
+    doc.write(`<!DOCTYPE html><html><head><style>
+        @media print {
+            body { margin: 0; }
+            img {
+                display: block;
+                max-width: 100%;
+                height: auto;
+                page-break-after: always;
+            }
+            img:last-child { page-break-after: avoid; }
+        }
+        @media screen { body { margin: 0; } }
+    </style></head><body>`);
+
+    for (const img of pageImages) {
+        doc.write(`<img src="${img.dataUrl}" />`);
+    }
+
+    doc.write('</body></html>');
+    doc.close();
+
+    // Wait for images to load before printing
+    const images = doc.querySelectorAll('img');
+    await Promise.all(Array.from(images).map(img =>
+        img.complete
+            ? Promise.resolve()
+            : new Promise(resolve => { img.onload = resolve; img.onerror = resolve; })
+    ));
+
+    // Trigger print and clean up the iframe after the dialog closes.
+    // Use the 'afterprint' event when available so the iframe stays alive
+    // while the user interacts with the print dialog. Fall back to a
+    // generous timeout for browsers that don't fire the event.
+    const cleanup = () => {
+        try { document.body.removeChild(iframe); } catch { /* already removed */ }
+    };
+    const win = iframe.contentWindow;
+    if (win) {
+        win.addEventListener('afterprint', cleanup, { once: true });
+        // Safety net: remove after 60s even if afterprint never fires
+        setTimeout(cleanup, 60_000);
+        win.focus();
+        win.print();
+    } else {
+        cleanup();
+    }
+}
+
+// ── Text search with highlight ──────────────────────────────────────────
+
+/**
+ * Strip diacritical marks from a string so that e.g. "Curaçao" matches
+ * a search for "curacao". Uses Unicode NFD decomposition to separate
+ * base characters from combining marks, then removes the marks.
+ */
+function stripDiacritics(str) {
+    return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+/**
+ * Search for text in the PDF and highlight all occurrences with
+ * semi-transparent overlays on top of the rendered canvas.
+ *
+ * Pass an empty string to clear all highlights.
+ *
+ * In single-page mode, only the current page is searched.
+ * In continuous mode, all rendered pages are searched.
+ *
+ * The search is case-insensitive and diacritics-insensitive,
+ * so "curacao" will match "Curaçao".
+ *
+ * @param {string} containerId - The container element ID
+ * @param {string} query       - Text to search for (case-insensitive)
+ */
+export async function searchText(containerId, query) {
+    const viewer = viewers[containerId];
+    if (!viewer) return;
+
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    // Remove any existing highlight overlays
+    container.querySelectorAll('.pdf-search-highlight').forEach(el => el.remove());
+
+    // If query is empty, just clear highlights
+    if (!query || query.trim() === '') return;
+
+    const { pdf, rotation, displayMode, currentPage } = viewer;
+    const startPage = displayMode === 'single' ? currentPage : 1;
+    const endPage = displayMode === 'single' ? currentPage : pdf.numPages;
+
+    // Get all rendered .pdf-page divs in the container
+    const pageDivs = container.querySelectorAll('.pdf-page');
+    if (pageDivs.length === 0) return;
+
+    // Normalize query: strip diacritics and lowercase for accent-insensitive matching
+    const normalizedQuery = stripDiacritics(query.toLowerCase());
+
+    // In continuous mode, only iterate over the actually rendered page divs
+    // (the pixel budget may have cut off rendering early).
+    const renderedCount = pageDivs.length;
+
+    for (let i = startPage; i <= endPage; i++) {
+        // Map page number to rendered div index
+        const pageIdx = displayMode === 'single' ? 0 : i - startPage;
+
+        // Stop if we've exceeded the number of actually rendered page divs
+        if (pageIdx >= renderedCount) break;
+
+        const pageDiv = pageDivs[pageIdx];
+        if (!pageDiv) continue;
+
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+
+        // Determine the scale used for this page's rendering
+        const scale = viewer.pinchScale ?? viewer.currentScale ?? viewer.baseScale ?? 1.0;
+        const vp = page.getViewport({ scale, rotation });
+
+        // Search each text item for the query (case + diacritics insensitive)
+        for (const item of textContent.items) {
+            if (!item.str) continue;
+
+            // Normalize the item text the same way as the query
+            const normalizedStr = stripDiacritics(item.str.toLowerCase());
+
+            // NFD decomposition may change string length (e.g. "ç" → "c" + combining cedilla → stripped to "c").
+            // Build a mapping from normalized-string index back to original-string index
+            // so highlight positions use the original (pre-normalization) character widths.
+            const normToOrigMap = [];
+            let origIdx = 0;
+            const origNfd = item.str.normalize('NFD');
+            for (let n = 0; n < origNfd.length; n++) {
+                const ch = origNfd[n];
+                // Combining marks (U+0300–U+036F) are stripped in normalizedStr,
+                // so they don't get a slot in the map
+                if (!/[\u0300-\u036f]/.test(ch)) {
+                    normToOrigMap.push(origIdx);
+                }
+                origIdx++;
+            }
+            // Sentinel to simplify end-of-match offset calculation
+            normToOrigMap.push(item.str.length);
+
+            let searchIdx = 0;
+
+            // Find all occurrences of the normalized query within the normalized text
+            while ((searchIdx = normalizedStr.indexOf(normalizedQuery, searchIdx)) !== -1) {
+                // Map normalized match positions back to original string positions
+                // to get correct character-width-based offsets
+                const origStart = normToOrigMap[searchIdx] ?? searchIdx;
+                const origEnd = normToOrigMap[searchIdx + normalizedQuery.length] ?? (searchIdx + normalizedQuery.length);
+
+                // item.transform: [scaleX, skewY, skewX, scaleY, translateX, translateY]
+                // item.width/height are in unscaled PDF units.
+                const itemTx = item.transform;
+
+                // Font height from the transform's scaleY, falling back to item.height
+                const fontHeight = Math.abs(itemTx[3]) || item.height || 10;
+
+                // Estimate character width in PDF units (unscaled)
+                const charWidth = item.width / Math.max(item.str.length, 1);
+                const matchOffsetX = origStart * charWidth;
+                const matchWidth = (origEnd - origStart) * charWidth;
+
+                // The text item's origin in PDF coords is (itemTx[4], itemTx[5]).
+                // This is the BASELINE of the text. The top of the glyph is
+                // at pdfY + fontHeight (PDF Y-axis points up).
+                const pdfX = itemTx[4] + matchOffsetX;
+                const pdfY = itemTx[5];
+
+                // Transform the top-left and bottom-right corners from PDF
+                // page coordinates to viewport (pixel) coordinates.
+                // Top of glyph: pdfY + fontHeight (above baseline in PDF coords)
+                // Bottom of glyph: pdfY (baseline)
+                const topLeft = pdfjsLib.Util.applyTransform(
+                    [pdfX, pdfY + fontHeight], vp.transform
+                );
+                const bottomRight = pdfjsLib.Util.applyTransform(
+                    [pdfX + matchWidth, pdfY], vp.transform
+                );
+
+                // Compute the highlight rectangle from the two transformed corners.
+                // The viewport transform flips Y (PDF bottom-up → screen top-down),
+                // so use min/max for robustness.
+                const left = Math.min(topLeft[0], bottomRight[0]);
+                const top = Math.min(topLeft[1], bottomRight[1]);
+                const width = Math.abs(bottomRight[0] - topLeft[0]);
+                const height = Math.abs(bottomRight[1] - topLeft[1]);
+
+                // Skip degenerate highlights (zero-size or NaN)
+                if (width < 1 || height < 1 || isNaN(left) || isNaN(top)) {
+                    searchIdx += normalizedQuery.length;
+                    continue;
+                }
+
+                // Create highlight overlay div — neon yellow marker style
+                const highlight = document.createElement('div');
+                highlight.className = 'pdf-search-highlight';
+                highlight.style.cssText =
+                    `position:absolute;` +
+                    `left:${left}px;` +
+                    `top:${top}px;` +
+                    `width:${width}px;` +
+                    `height:${height}px;` +
+                    `background:rgba(255,255,0,0.55);` +
+                    `outline:2px solid rgba(255,200,0,0.8);` +
+                    `border-radius:2px;` +
+                    `pointer-events:none;` +
+                    `z-index:10;` +
+                    `mix-blend-mode:multiply;`;
+
+                // The page div needs relative positioning for the absolute highlights
+                pageDiv.style.position = 'relative';
+                pageDiv.appendChild(highlight);
+
+                searchIdx += normalizedQuery.length;
+            }
+        }
+    }
+
+    // Scroll to the first highlight if one was found
+    const firstHighlight = container.querySelector('.pdf-search-highlight');
+    if (firstHighlight) {
+        firstHighlight.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
 }

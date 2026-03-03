@@ -8,10 +8,6 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents()
     .AddInteractiveWebAssemblyComponents();
 
-// Add Telerik Blazor server side services
-builder.Services.AddTelerikBlazor();
-
-
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.

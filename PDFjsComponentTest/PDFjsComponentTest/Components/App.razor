@@ -21,6 +21,36 @@
     <Routes />
     <ReconnectModal />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
+
+    @* ── Block iOS Safari browser zoom while allowing PDF viewer pinch ── *@
+    <script>
+        (function () {
+            // Block multi-touch zoom outside the PDF viewer
+            document.addEventListener('touchmove', function (e) {
+                if (e.touches.length > 1 && !e.target.closest('.pdf-viewer-pages')) {
+                    e.preventDefault();
+                }
+            }, { passive: false });
+
+            // Block Safari-specific gesture events (fires before touchmove)
+            document.addEventListener('gesturestart', function (e) {
+                if (!e.target.closest('.pdf-viewer-pages')) e.preventDefault();
+            }, { passive: false });
+
+            document.addEventListener('gesturechange', function (e) {
+                if (!e.target.closest('.pdf-viewer-pages')) e.preventDefault();
+            }, { passive: false });
+
+            // Block double-tap-to-zoom outside the PDF viewer
+            var lastTouchEnd = 0;
+            document.addEventListener('touchend', function (e) {
+                if (e.target.closest('.pdf-viewer-pages')) return;
+                var now = Date.now();
+                if (now - lastTouchEnd <= 300) e.preventDefault();
+                lastTouchEnd = now;
+            }, { passive: false });
+        })();
+    </script>
 </body>
 
 </html>

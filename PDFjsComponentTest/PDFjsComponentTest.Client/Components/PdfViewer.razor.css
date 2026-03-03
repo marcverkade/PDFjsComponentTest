@@ -1,4 +1,4 @@
-.pdf-viewer-container {
+﻿.pdf-viewer-container {
     border: 1px solid #ccc;
     border-radius: 4px;
     display: flex;
@@ -122,4 +122,67 @@
     outline: 2px solid #4a90d9;
     outline-offset: -1px;
     border-color: #4a90d9;
+}
+
+.pdf-zoom-btn {
+    font-size: 0.9rem;
+    padding: 1px 6px;
+    min-width: 24px;
+    font-weight: bold;
+}
+
+/* ── Mobile compact layout (< 768px) ── */
+@media (max-width: 767.98px) {
+    .pdf-viewer-toolbar {
+        padding: 4px 6px;
+        gap: 3px;
+        min-height: 28px;
+    }
+
+    .pdf-nav-btn {
+        padding: 1px 5px;
+        font-size: 0.75rem;
+        min-width: 22px;
+    }
+
+    .pdf-nav-label {
+        font-size: 0.75rem;
+        padding: 0 2px;
+    }
+
+    .pdf-nav-input {
+        width: 2.8em;
+        font-size: 0.75rem;
+        padding: 0 2px;
+    }
+
+    .pdf-toolbar-item {
+        font-size: 0.75rem;
+    }
+
+    .pdf-toolbar-separator {
+        font-size: 0.75rem;
+        padding: 0 1px;
+    }
+
+    .pdf-toolbar-protected {
+        font-size: 0.7rem;
+    }
+
+    .pdf-zoom-btn {
+        font-size: 0.75rem;
+        padding: 1px 4px;
+        min-width: 20px;
+    }
+
+    /* Hide orientation and display mode labels on mobile — the
+       toolbar only shows nav + zoom + protection indicator */
+    .pdf-viewer-toolbar .pdf-toolbar-item:nth-of-type(n+2) {
+        display: none;
+    }
+
+    /* Hide separators that become orphaned when items are hidden */
+    .pdf-viewer-toolbar .pdf-toolbar-separator:nth-of-type(n+2) {
+        display: none;
+    }
 }

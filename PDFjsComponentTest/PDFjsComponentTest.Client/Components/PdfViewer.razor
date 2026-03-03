@@ -10,8 +10,8 @@
             @if (DisplayMode == PdfDisplayMode.SinglePage && _totalPages > 1)
             {
                 <div class="pdf-viewer-nav">
-                    <button class="pdf-nav-btn" tabindex="-1" @onclick="FirstPage" disabled="@(_currentPage <= 1)" title="First page">⟨⟨</button>
-                    <button class="pdf-nav-btn" tabindex="-1" @onclick="PreviousPage" disabled="@(_currentPage <= 1)" title="Previous page (Ctrl+←)">‹</button>
+                    <button class="pdf-nav-btn" tabindex="-1" @onclick="FirstPage" disabled="@(_currentPage <= 1)" title="First page">⏮</button>
+                    <button class="pdf-nav-btn" tabindex="-1" @onclick="PreviousPage" disabled="@(_currentPage <= 1)" title="Previous page (Ctrl+←)">◀</button>
                     <span class="pdf-nav-label">
                         <input type="number"
                                class="pdf-nav-input"
@@ -23,8 +23,8 @@
                                @onkeydown="OnPageInputKeyDown"
                                title="Type a page number and press Enter" /> / @_totalPages
                     </span>
-                    <button class="pdf-nav-btn" tabindex="-1" @onclick="NextPage" disabled="@(_currentPage >= _totalPages)" title="Next page (Ctrl+→)">›</button>
-                    <button class="pdf-nav-btn" tabindex="-1" @onclick="LastPage" disabled="@(_currentPage >= _totalPages)" title="Last page">⟩⟩</button>
+                    <button class="pdf-nav-btn" tabindex="-1" @onclick="NextPage" disabled="@(_currentPage >= _totalPages)" title="Next page (Ctrl+→)">▶</button>
+                    <button class="pdf-nav-btn" tabindex="-1" @onclick="LastPage" disabled="@(_currentPage >= _totalPages)" title="Last page">⏭</button>
                 </div>
             }
             else if (DisplayMode == PdfDisplayMode.Continuous)
@@ -34,8 +34,12 @@
 
             <span class="pdf-toolbar-separator">|</span>
 
-            @* ── Zoom factor ── *@
-            <span class="pdf-toolbar-item">@CurrentScaleDisplay</span>
+            @* ── Zoom controls: −, percentage, + ── *@
+            <div class="pdf-viewer-nav">
+                <button class="pdf-nav-btn pdf-zoom-btn" tabindex="-1" @onclick="ToolbarZoomOut" title="Zoom out 25%">−</button>
+                <span class="pdf-toolbar-item">@CurrentScaleDisplay</span>
+                <button class="pdf-nav-btn pdf-zoom-btn" tabindex="-1" @onclick="ToolbarZoomIn" title="Zoom in 25%">+</button>
+            </div>
 
             <span class="pdf-toolbar-separator">|</span>
 
@@ -392,6 +396,22 @@
             // onchange) and restores arrow-key panning in one step.
             await _module.InvokeVoidAsync("focusContainer", _containerId);
         }
+    }
+
+    /// <summary>Toolbar zoom in by 25% and refocus the PDF container.</summary>
+    private async Task ToolbarZoomIn()
+    {
+        await ZoomInAsync(0.25m);
+        if (_module is not null)
+            await _module.InvokeVoidAsync("focusContainer", _containerId);
+    }
+
+    /// <summary>Toolbar zoom out by 25% and refocus the PDF container.</summary>
+    private async Task ToolbarZoomOut()
+    {
+        await ZoomOutAsync(0.25m);
+        if (_module is not null)
+            await _module.InvokeVoidAsync("focusContainer", _containerId);
     }
 
     // ── Public methods (accessible via @ref) ────────────────────────────

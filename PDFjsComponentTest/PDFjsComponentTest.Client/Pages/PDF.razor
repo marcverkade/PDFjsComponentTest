@@ -1,11 +1,11 @@
-﻿@page "/pdfviewer"
+﻿@page "/"
 @rendermode InteractiveWebAssembly
 
 <TelerikRootComponent>
 
 <PageTitle>PDF Viewer</PageTitle>
 
-<h1>PDF Viewer</h1>
+<h1 class="d-none d-md-block">PDF Viewer</h1>
 
 @if (!_isInteractive)
 {
@@ -15,7 +15,8 @@
 }
 else
 {
-    <div class="mb-3 d-flex align-items-end gap-3 flex-wrap">
+    @* ── Desktop-only controls: file picker, orientation, zoom preset, display mode ── *@
+    <div class="mb-3 d-none d-md-flex align-items-end gap-3 flex-wrap">
         <div>
             <label class="form-label">Select a PDF file:</label>
             <InputFile OnChange="@OnFileSelected" accept=".pdf" class="form-control" style="max-width: 400px;"
@@ -73,9 +74,17 @@ else
         </div>
     </div>
 
+    @* ── Mobile-only: compact search bar ── *@
+    <div class="mb-2 d-flex d-md-none gap-1">
+        <input type="text" class="form-control form-control-sm" @bind="searchQuery" @bind:event="oninput"
+               placeholder="Search..." @onkeydown="OnSearchKeyDown" tabindex="-1" />
+        <button class="btn btn-outline-success btn-sm" @onclick="OnSearch" tabindex="-1">🔎</button>
+        <button class="btn btn-outline-secondary btn-sm" @onclick="OnClearSearch" tabindex="-1">✕</button>
+    </div>
+
     @if (!string.IsNullOrEmpty(selectedFileName))
     {
-        <p class="text-muted mb-2">
+        <p class="text-muted mb-2 d-none d-md-block">
             <strong>Loaded:</strong> @selectedFileName (@FormatFileSize(selectedFileSize))
         </p>
     }
@@ -83,7 +92,8 @@ else
     @* ── Viewer action buttons (shown when any PDF is loaded) ── *@
     @if (pdfBytes is not null || !string.IsNullOrEmpty(DefaultPdfUrl))
     {
-        <div class="mb-3 d-flex align-items-center gap-2 flex-wrap">
+        @* ── Desktop-only action buttons ── *@
+        <div class="mb-3 d-none d-md-flex align-items-center gap-2 flex-wrap">
             @* Zoom controls — uses the custom zoom step amount *@
             <button class="btn btn-outline-secondary btn-sm" @onclick="OnZoomOut" title="Zoom out by custom amount"
                     tabindex="-1">
@@ -160,6 +170,7 @@ else
         </div>
 
         @* ── PDF Viewer: use uploaded bytes if available, otherwise the default URL ── *@
+        @* On mobile, use 85vh to fill the screen; on desktop, keep 70vh *@
         @if (pdfBytes is not null)
         {
             <PdfViewer @ref="pdfViewerRef"
@@ -172,7 +183,7 @@ else
                        MinZoom="0.1"
                        MaxZoom="5.0"
                        ZoomRate="0.25"
-                       Height="70vh" />
+                       Height="@ViewerHeight" />
         }
         else
         {
@@ -186,7 +197,7 @@ else
                        MinZoom="0.1"
                        MaxZoom="5.0"
                        ZoomRate="0.25"
-                       Height="70vh" />
+                       Height="@ViewerHeight" />
         }
     }
 }
@@ -230,6 +241,12 @@ else
     // ── Protection toggles ──
     private bool preventDownload;
     private bool preventPrinting;
+
+    /// <summary>
+    /// Responsive viewer height: use CSS calc with a media-query-like approach.
+    /// On mobile the controls are hidden, so we give more space to the viewer.
+    /// </summary>
+    private const string ViewerHeight = "clamp(70vh, 85vh, 85vh)";
 
     protected override void OnAfterRender(bool firstRender)
     {

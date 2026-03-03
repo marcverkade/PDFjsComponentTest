@@ -4,39 +4,51 @@
 <div class="pdf-viewer-container @(CssClass ?? "")"
      style="width: @(Width ?? "100%"); @(Height is not null ? $"height: {Height};" : "")">
     <div class="pdf-viewer-toolbar">
-        @if (DisplayMode == PdfDisplayMode.SinglePage && _totalPages > 1)
+        @if (_totalPages > 0)
         {
-            <div class="pdf-viewer-nav">
-                <button class="pdf-nav-btn" @onclick="PreviousPage" disabled="@(_currentPage <= 1)" title="Previous page (Ctrl+←)">‹</button>
-                <span class="pdf-nav-label">@_currentPage / @_totalPages</span>
-                <button class="pdf-nav-btn" @onclick="NextPage" disabled="@(_currentPage >= _totalPages)" title="Next page (Ctrl+→)">›</button>
-            </div>
+            @* ── Page navigation ── *@
+            @if (DisplayMode == PdfDisplayMode.SinglePage && _totalPages > 1)
+            {
+                <div class="pdf-viewer-nav">
+                    <button class="pdf-nav-btn" @onclick="FirstPage" disabled="@(_currentPage <= 1)" title="First page">⟨⟨</button>
+                    <button class="pdf-nav-btn" @onclick="PreviousPage" disabled="@(_currentPage <= 1)" title="Previous page (Ctrl+←)">‹</button>
+                    <span class="pdf-nav-label">@_currentPage / @_totalPages</span>
+                    <button class="pdf-nav-btn" @onclick="NextPage" disabled="@(_currentPage >= _totalPages)" title="Next page (Ctrl+→)">›</button>
+                    <button class="pdf-nav-btn" @onclick="LastPage" disabled="@(_currentPage >= _totalPages)" title="Last page">⟩⟩</button>
+                </div>
+            }
+            else if (DisplayMode == PdfDisplayMode.Continuous)
+            {
+                <span class="pdf-toolbar-item">@_totalPages page(s)</span>
+            }
+
+            <span class="pdf-toolbar-separator">|</span>
+
+            @* ── Zoom factor ── *@
+            <span class="pdf-toolbar-item">@CurrentScaleDisplay</span>
+
+            <span class="pdf-toolbar-separator">|</span>
+
+            @* ── Orientation ── *@
+            <span class="pdf-toolbar-item">@Orientation</span>
+
+            <span class="pdf-toolbar-separator">|</span>
+
+            @* ── Display mode ── *@
+            <span class="pdf-toolbar-item">@(DisplayMode == PdfDisplayMode.SinglePage ? "Single" : "Continuous")</span>
         }
-        <span class="pdf-viewer-info">
-            @if (!string.IsNullOrEmpty(_errorMessage))
-            {
-                <span class="text-danger">@_errorMessage</span>
-            }
-            else if (_totalPages > 0)
-            {
-                @if (DisplayMode == PdfDisplayMode.Continuous)
-                {
-                    <span>@_totalPages page(s) | @CurrentScaleDisplay | @Orientation</span>
-                }
-                else
-                {
-                    <span>@CurrentScaleDisplay | @Orientation</span>
-                }
-            }
-            else if (_isLoading)
-            {
-                <span>Loading PDF...</span>
-            }
-            else
-            {
-                <span>No PDF loaded</span>
-            }
-        </span>
+        else if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <span class="text-danger">@_errorMessage</span>
+        }
+        else if (_isLoading)
+        {
+            <span class="pdf-toolbar-item">Loading PDF...</span>
+        }
+        else
+        {
+            <span class="pdf-toolbar-item">No PDF loaded</span>
+        }
     </div>
     <div id="@_containerId" class="pdf-viewer-pages"></div>
 </div>
@@ -293,9 +305,13 @@
         StateHasChanged();
     }
 
+    private Task FirstPage() => GoToPageAsync(1);
+
     private Task PreviousPage() => GoToPageAsync(_currentPage - 1);
 
     private Task NextPage() => GoToPageAsync(_currentPage + 1);
+
+    private Task LastPage() => GoToPageAsync(_totalPages);
 
     // ── Public methods (accessible via @ref) ────────────────────────────
 

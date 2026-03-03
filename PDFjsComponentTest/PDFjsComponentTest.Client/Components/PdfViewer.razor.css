@@ -17,13 +17,59 @@
     border-bottom: 1px solid #ccc;
     display: flex;
     align-items: center;
+    gap: 6px;
     min-height: 36px;
     flex-shrink: 0;
+    flex-wrap: wrap;
 }
 
-.pdf-viewer-info {
+.pdf-viewer-nav {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.pdf-nav-btn {
+    background: none;
+    border: 1px solid #bbb;
+    border-radius: 3px;
+    padding: 2px 8px;
+    font-size: 0.875rem;
+    font-weight: bold;
+    cursor: pointer;
+    color: #333;
+    line-height: 1.2;
+    min-width: 28px;
+    text-align: center;
+}
+
+.pdf-nav-btn:hover:not(:disabled) {
+    background-color: #e0e0e0;
+}
+
+.pdf-nav-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.pdf-nav-label {
+    font-size: 0.875rem;
+    color: #333;
+    padding: 0 4px;
+    white-space: nowrap;
+}
+
+.pdf-toolbar-item {
     font-size: 0.875rem;
     color: #555;
+    white-space: nowrap;
+}
+
+.pdf-toolbar-separator {
+    color: #ccc;
+    font-size: 0.875rem;
+    padding: 0 2px;
+    user-select: none;
 }
 
 .pdf-viewer-pages {

@@ -681,6 +681,15 @@ function setupTouchGestures(containerId) {
  * Uses cursor feedback: 'grab' when hoverable, 'grabbing' while dragging.
  * Only activates when content actually overflows (scrollWidth > clientWidth
  * or scrollHeight > clientHeight).
+ *
+ * Also supports mouse-swipe page navigation in single-page mode:
+ *   - If content fits (no horizontal overflow): a horizontal drag navigates
+ *     pages directly (left drag → next page, right drag → previous page).
+ *   - If content overflows and the drag STARTED at a scroll boundary:
+ *     a horizontal swipe at that boundary navigates pages.
+ *   - Normal panning continues to work when not at a boundary.
+ *   - Swipe thresholds (distance, duration, vertical tolerance) match
+ *     the touch gesture constants for consistent behavior.
  */
 function setupDragPan(containerId) {
     const container = document.getElementById(containerId);
@@ -692,6 +701,28 @@ function setupDragPan(containerId) {
     let isDragging = false;
     let startX = 0, startY = 0;         // Mouse position at drag start
     let startScrollX = 0, startScrollY = 0;  // Scroll position at drag start
+    let dragStartTime = 0;              // Timestamp of mousedown (for swipe detection)
+
+    // Snapshot boundary state at drag START so we only navigate when the
+    // user was ALREADY at the edge before dragging — not if panning
+    // brought them there.
+    let swipeStartedAtLeftEdge = false;
+    let swipeStartedAtRightEdge = false;
+
+    /** Whether content fits horizontally (no scrollbar needed). 1px tolerance. */
+    function fitsH() {
+        return container.scrollWidth <= container.clientWidth + 1;
+    }
+
+    /** Whether scrolled to the left edge (1px tolerance). */
+    function atLeftEdge() {
+        return container.scrollLeft <= 1;
+    }
+
+    /** Whether scrolled to (or past) the right edge (1px tolerance). */
+    function atRightEdge() {
+        return container.scrollLeft + container.clientWidth >= container.scrollWidth - 1;
+    }
 
     // Show grab cursor when content overflows
     container.style.cursor = 'grab';
@@ -704,18 +735,25 @@ function setupDragPan(containerId) {
         // Only left mouse button, and not when Ctrl is held (that's for zoom)
         if (e.button !== 0 || e.ctrlKey) return;
 
-        // Only pan when content overflows
-        const overflowsX = container.scrollWidth > container.clientWidth;
-        const overflowsY = container.scrollHeight > container.clientHeight;
-        if (!overflowsX && !overflowsY) return;
-
         isDragging = true;
         startX = e.clientX;
         startY = e.clientY;
         startScrollX = container.scrollLeft;
         startScrollY = container.scrollTop;
+        dragStartTime = Date.now();
 
-        container.style.cursor = 'grabbing';
+        // Snapshot boundary state at drag START.
+        // The swipe will only navigate if the user was already at
+        // the edge before the gesture — not if panning brought them there.
+        swipeStartedAtLeftEdge = fitsH() || atLeftEdge();
+        swipeStartedAtRightEdge = fitsH() || atRightEdge();
+
+        // Only change cursor and pan when content overflows
+        const overflowsX = container.scrollWidth > container.clientWidth;
+        const overflowsY = container.scrollHeight > container.clientHeight;
+        if (overflowsX || overflowsY) {
+            container.style.cursor = 'grabbing';
+        }
         container.style.userSelect = 'none';  // Prevent text selection during drag
 
         e.preventDefault();
@@ -724,6 +762,11 @@ function setupDragPan(containerId) {
     function onMouseMove(e) {
         if (!isDragging) return;
 
+        // Only pan when content overflows
+        const overflowsX = container.scrollWidth > container.clientWidth;
+        const overflowsY = container.scrollHeight > container.clientHeight;
+        if (!overflowsX && !overflowsY) return;
+
         // Calculate how far the mouse moved and scroll inversely
         const dx = e.clientX - startX;
         const dy = e.clientY - startY;
@@ -731,11 +774,38 @@ function setupDragPan(containerId) {
         container.scrollTop = startScrollY - dy;
     }
 
-    function onMouseUp() {
+    function onMouseUp(e) {
         if (!isDragging) return;
         isDragging = false;
         container.style.cursor = 'grab';
         container.style.userSelect = '';
+
+        // ── Mouse swipe-at-boundary: page navigation (single-page mode) ──
+        if (viewer.displayMode !== 'single') return;
+
+        const dt = Date.now() - dragStartTime;
+        const dx = e.clientX - startX;   // Signed: positive = mouse moved right (dragged right)
+        const dy = e.clientY - startY;
+        const absDx = Math.abs(dx);
+        const absDy = Math.abs(dy);
+
+        // Must be a fast, primarily horizontal swipe
+        if (dt > SWIPE_MAX_DURATION_MS) return;
+        if (absDx < SWIPE_MIN_DISTANCE_PX) return;
+        if (absDy > SWIPE_MAX_VERTICAL_PX) return;
+
+        // Drag left (mouse moved left, dx < 0) = swipe content left → next page
+        // Only if content fits OR we started at the right edge
+        if (dx < 0 && swipeStartedAtRightEdge) {
+            navigateToPage(containerId, viewer.currentPage + 1);
+            return;
+        }
+        // Drag right (mouse moved right, dx > 0) = swipe content right → previous page
+        // Only if content fits OR we started at the left edge
+        if (dx > 0 && swipeStartedAtLeftEdge) {
+            navigateToPage(containerId, viewer.currentPage - 1);
+            return;
+        }
     }
 
     container.addEventListener('mousedown', onMouseDown);
@@ -1089,12 +1159,21 @@ export function disposePdfViewer(containerId) {
 const ARROW_SCROLL_PX = 60;
 
 /**
- * Sets up arrow-key scrolling so the user can pan the PDF when it
- * overflows the container. The container must be focusable (tabindex)
- * to receive keyboard events.
+ * Sets up arrow-key scrolling and page navigation.
  *
- * Also handles Ctrl+ArrowLeft/Right to navigate between pages
- * in single-page mode.
+ * Behavior in single-page mode:
+ *   - Ctrl+Arrow always navigates pages immediately.
+ *   - If content fits (no overflow): Arrow Left/Right navigate pages directly.
+ *   - If content overflows: Arrow keys scroll the content.
+ *   - At a scroll boundary: the FIRST arrow press at the edge does nothing
+ *     (absorbs the keypress). The SECOND consecutive press at the same edge
+ *     navigates to the next/previous page. This prevents accidental page
+ *     turns when the user is scrolling and hits the boundary.
+ *
+ * The "second press" state is tracked per direction and resets whenever:
+ *   - A different key is pressed
+ *   - The scroll position moves away from the boundary
+ *   - A page navigation occurs
  */
 function setupKeyboardPan(containerId) {
     const container = document.getElementById(containerId);
@@ -1110,44 +1189,127 @@ function setupKeyboardPan(containerId) {
         container.style.outline = 'none';
     }
 
-    function onKeyDown(e) {
+    // Tracks whether the user already pressed an arrow key at a boundary
+    // and was "warned" (the first press did nothing). The next press in
+    // the same direction triggers page navigation.
+    let edgeReadyDirection = null; // 'left' | 'right' | null
 
-        // ── Ctrl+Arrow: page navigation in single-page mode ──
+    /** Whether scrolled to the left edge (1px tolerance). */
+    function atLeftEdge() {
+        return container.scrollLeft <= 1;
+    }
+
+    /** Whether scrolled to (or past) the right edge (1px tolerance). */
+    function atRightEdge() {
+        return container.scrollLeft + container.clientWidth >= container.scrollWidth - 1;
+    }
+
+    function onKeyDown(e) {
+        // ── Ctrl+Arrow: always navigate pages immediately in single-page mode ──
         if (e.ctrlKey && viewer.displayMode === 'single') {
             if (e.key === 'ArrowRight') {
                 e.preventDefault();
+                edgeReadyDirection = null;
                 navigateToPage(containerId, viewer.currentPage + 1);
                 return;
             }
             if (e.key === 'ArrowLeft') {
                 e.preventDefault();
+                edgeReadyDirection = null;
                 navigateToPage(containerId, viewer.currentPage - 1);
                 return;
             }
         }
 
-        // ── Plain arrow keys: scroll panning ──
-        const overflowsX = container.scrollWidth > container.clientWidth;
-        const overflowsY = container.scrollHeight > container.clientHeight;
-        if (!overflowsX && !overflowsY) return;
+        // ── Plain arrow keys ──
+        const overflowsX = container.scrollWidth > container.clientWidth + 1;
+        const overflowsY = container.scrollHeight > container.clientHeight + 1;
+
+        // Reset edge state if a non-horizontal arrow key is pressed
+        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') {
+            edgeReadyDirection = null;
+        }
 
         switch (e.key) {
             case 'ArrowLeft':
-                if (overflowsX) container.scrollLeft -= ARROW_SCROLL_PX;
+                if (viewer.displayMode === 'single') {
+                    if (!overflowsX) {
+                        // Content fits horizontally — navigate directly
+                        e.preventDefault();
+                        edgeReadyDirection = null;
+                        navigateToPage(containerId, viewer.currentPage - 1);
+                        return;
+                    }
+                    if (atLeftEdge()) {
+                        // Already at left edge — check two-press gate
+                        e.preventDefault();
+                        if (edgeReadyDirection === 'left') {
+                            // Second press at left edge → navigate
+                            edgeReadyDirection = null;
+                            navigateToPage(containerId, viewer.currentPage - 1);
+                        } else {
+                            // First press at left edge → absorb (do nothing)
+                            edgeReadyDirection = 'left';
+                        }
+                        return;
+                    }
+                    // Not at edge — scroll normally, reset edge state
+                    edgeReadyDirection = null;
+                }
+                if (overflowsX) {
+                    container.scrollLeft -= ARROW_SCROLL_PX;
+                    e.preventDefault();
+                }
                 break;
+
             case 'ArrowRight':
-                if (overflowsX) container.scrollLeft += ARROW_SCROLL_PX;
+                if (viewer.displayMode === 'single') {
+                    if (!overflowsX) {
+                        // Content fits horizontally — navigate directly
+                        e.preventDefault();
+                        edgeReadyDirection = null;
+                        navigateToPage(containerId, viewer.currentPage + 1);
+                        return;
+                    }
+                    if (atRightEdge()) {
+                        // Already at right edge — check two-press gate
+                        e.preventDefault();
+                        if (edgeReadyDirection === 'right') {
+                            // Second press at right edge → navigate
+                            edgeReadyDirection = null;
+                            navigateToPage(containerId, viewer.currentPage + 1);
+                        } else {
+                            // First press at right edge → absorb (do nothing)
+                            edgeReadyDirection = 'right';
+                        }
+                        return;
+                    }
+                    // Not at edge — scroll normally, reset edge state
+                    edgeReadyDirection = null;
+                }
+                if (overflowsX) {
+                    container.scrollLeft += ARROW_SCROLL_PX;
+                    e.preventDefault();
+                }
                 break;
+
             case 'ArrowUp':
-                if (overflowsY) container.scrollTop -= ARROW_SCROLL_PX;
+                if (overflowsY) {
+                    container.scrollTop -= ARROW_SCROLL_PX;
+                    e.preventDefault();
+                }
                 break;
+
             case 'ArrowDown':
-                if (overflowsY) container.scrollTop += ARROW_SCROLL_PX;
+                if (overflowsY) {
+                    container.scrollTop += ARROW_SCROLL_PX;
+                    e.preventDefault();
+                }
                 break;
+
             default:
                 return; // Don't preventDefault for non-arrow keys
         }
-        e.preventDefault();
     }
 
     container.addEventListener('keydown', onKeyDown);

@@ -117,6 +117,16 @@ else
                     🖨 Range
                 </button>
             </div>
+
+            <span class="text-muted mx-1">|</span>
+
+            @* Download controls *@
+            <button class="btn btn-outline-success btn-sm" @onclick="OnDownloadAll" title="Download entire PDF">
+                💾 Download All
+            </button>
+            <button class="btn btn-outline-success btn-sm" @onclick="OnDownloadCurrentPage" title="Download current page as PNG">
+                💾 Current Page
+            </button>
         </div>
 
         @* ── PDF Viewer: use uploaded bytes if available, otherwise the default URL ── *@
@@ -274,6 +284,20 @@ else
     {
         if (e.Key == "Enter")
             await OnSearch();
+    }
+
+    // ── Download button handlers ──
+
+    private async Task OnDownloadAll()
+    {
+        if (pdfViewerRef is not null)
+            await pdfViewerRef.DownloadAllAsync(selectedFileName ?? "document.pdf");
+    }
+
+    private async Task OnDownloadCurrentPage()
+    {
+        if (pdfViewerRef is not null)
+            await pdfViewerRef.DownloadCurrentPageAsync();
     }
 
     // ── Helpers ──

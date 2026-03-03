@@ -1704,3 +1704,97 @@ export async function searchText(containerId, query) {
         firstHighlight.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 }
+
+// ── Download ────────────────────────────────────────────────────────────
+
+/**
+ * Download the entire original PDF file.
+ *
+ * If the viewer was initialized from byte data, reconstructs a Blob from
+ * the PDF.js document's raw data. If initialized from a URL, fetches the
+ * file and triggers the download.
+ *
+ * @param {string} containerId - The container element ID
+ * @param {string} fileName    - Suggested file name for the download
+ */
+export async function downloadAllPages(containerId, fileName) {
+    const viewer = viewers[containerId];
+    if (!viewer) return;
+
+    try {
+        // Get the raw PDF bytes from the PDF.js document
+        const data = await viewer.pdf.getData();
+        const blob = new Blob([data], { type: 'application/pdf' });
+        triggerDownload(blob, fileName || 'document.pdf');
+    } catch (err) {
+        console.warn('[PdfViewer] Download all failed:', err);
+    }
+}
+
+/**
+ * Download the current page as a PNG image.
+ *
+ * Renders the page at 2× scale for high-quality output, converts the
+ * canvas to a Blob, and triggers a browser download.
+ *
+ * @param {string} containerId - The container element ID
+ * @param {number} pageNum     - The page number to download (1-based)
+ * @param {string} fileName    - Suggested file name for the download
+ */
+export async function downloadPage(containerId, pageNum, fileName) {
+    const viewer = viewers[containerId];
+    if (!viewer) return;
+
+    const { pdf, rotation } = viewer;
+    const clamped = Math.max(1, Math.min(pageNum, pdf.numPages));
+
+    try {
+        const page = await pdf.getPage(clamped);
+        // Use 2× scale for high-quality output
+        const downloadScale = 2.0;
+        const vp = page.getViewport({ scale: downloadScale, rotation });
+
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+            console.warn('[PdfViewer] Failed to get 2D context for download');
+            return;
+        }
+
+        canvas.width = Math.floor(vp.width);
+        canvas.height = Math.floor(vp.height);
+
+        await page.render({ canvasContext: ctx, viewport: vp }).promise;
+
+        // Convert canvas to blob and trigger download
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+        if (blob) {
+            triggerDownload(blob, fileName || `page-${clamped}.png`);
+        }
+    } catch (err) {
+        console.warn(`[PdfViewer] Download page ${clamped} failed:`, err);
+    }
+}
+
+/**
+ * Trigger a browser file download from a Blob.
+ * Creates a temporary <a> element with a download attribute,
+ * clicks it programmatically, then cleans up.
+ *
+ * @param {Blob}   blob     - The file data to download
+ * @param {string} fileName - Suggested file name
+ */
+function triggerDownload(blob, fileName) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    // Clean up after a short delay to ensure the download starts
+    setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }, 100);
+}

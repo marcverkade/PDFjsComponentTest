@@ -447,6 +447,42 @@
         }
     }
 
+    /// <summary>
+    /// Download the entire PDF document as a file.
+    /// </summary>
+    public async Task DownloadAllAsync(string? fileName = null)
+    {
+        if (_module is null || _totalPages == 0) return;
+
+        try
+        {
+            await _module.InvokeVoidAsync("downloadAllPages", _containerId, fileName ?? "document.pdf");
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Download failed: {ex.Message}";
+            Console.WriteLine($"PdfViewer error: {ex}");
+        }
+    }
+
+    /// <summary>
+    /// Download the current page as a PNG image.
+    /// </summary>
+    public async Task DownloadCurrentPageAsync(string? fileName = null)
+    {
+        if (_module is null || _totalPages == 0) return;
+
+        try
+        {
+            await _module.InvokeVoidAsync("downloadPage", _containerId, _currentPage, fileName ?? $"page-{_currentPage}.png");
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Download failed: {ex.Message}";
+            Console.WriteLine($"PdfViewer error: {ex}");
+        }
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────
 
     private object GetZoomValue() => ZoomPercentage switch

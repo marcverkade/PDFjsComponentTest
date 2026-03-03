@@ -1,0 +1,288 @@
+﻿@page "/pdfviewer"
+@rendermode InteractiveWebAssembly
+
+<TelerikRootComponent>
+
+<PageTitle>PDF Viewer</PageTitle>
+
+<h1>PDF Viewer</h1>
+
+@if (!_isInteractive)
+{
+    <div class="border rounded p-5 text-center text-muted" style="height: 200px; display: flex; align-items: center; justify-content: center; background: #f8f9fa;">
+        <span>Loading WebAssembly runtime...</span>
+    </div>
+}
+else
+{
+    <div class="mb-3 d-flex align-items-end gap-3 flex-wrap">
+        <div>
+            <label class="form-label">Select a PDF file:</label>
+            <InputFile OnChange="@OnFileSelected" accept=".pdf" class="form-control" style="max-width: 400px;" />
+            @if (!string.IsNullOrEmpty(fileErrorMessage))
+            {
+                <small class="text-danger">@fileErrorMessage</small>
+            }
+        </div>
+
+        <div>
+            <label class="form-label">Zoom:</label>
+            <select class="form-select w-auto" @bind="selectedZoom">
+                <option value="@PdfZoom.Percent25">25%</option>
+                <option value="@PdfZoom.Percent50">50%</option>
+                <option value="@PdfZoom.Percent100">100%</option>
+                <option value="@PdfZoom.Percent150">150%</option>
+                <option value="@PdfZoom.Percent200">200%</option>
+                <option value="@PdfZoom.FullPage">Full Page</option>
+                <option value="@PdfZoom.FullWidth">Full Width</option>
+            </select>
+        </div>
+
+        <div>
+            <label class="form-label">Orientation:</label>
+            <select class="form-select w-auto" @bind="selectedOrientation">
+                <option value="@PdfOrientation.Portrait">Portrait</option>
+                <option value="@PdfOrientation.Landscape">Landscape</option>
+            </select>
+        </div>
+
+        <div>
+            <label class="form-label">Display:</label>
+            <select class="form-select w-auto" @bind="selectedDisplayMode">
+                <option value="@PdfDisplayMode.SinglePage">Single Page</option>
+                <option value="@PdfDisplayMode.Continuous">Continuous</option>
+            </select>
+        </div>
+
+        @* ── Search: inline next to Display for compact layout ── *@
+        <div>
+            <label class="form-label">Search:</label>
+            <div class="input-group input-group-sm" style="width: 300px;">
+                <input type="text" class="form-control" @bind="searchQuery" @bind:event="oninput"
+                       placeholder="Search text in PDF..." @onkeydown="OnSearchKeyDown" />
+                <button class="btn btn-outline-success" @onclick="OnSearch" title="Search and highlight">
+                    🔎
+                </button>
+                <button class="btn btn-outline-secondary" @onclick="OnClearSearch" title="Clear highlights">
+                    ✕
+                </button>
+            </div>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(selectedFileName))
+    {
+        <p class="text-muted mb-2">
+            <strong>Loaded:</strong> @selectedFileName (@FormatFileSize(selectedFileSize))
+        </p>
+    }
+
+    @if (pdfBytes is not null)
+    {
+        @* ── Viewer action buttons ── *@
+        <div class="mb-3 d-flex align-items-center gap-2 flex-wrap">
+            @* Zoom controls *@
+            <button class="btn btn-outline-secondary btn-sm" @onclick="OnZoomOut" title="Zoom out by 25%">
+                🔍− Zoom Out
+            </button>
+            <button class="btn btn-outline-secondary btn-sm" @onclick="OnZoomIn" title="Zoom in by 25%">
+                🔍+ Zoom In
+            </button>
+
+            <button class="btn btn-outline-warning btn-sm" @onclick="OnResetZoom" title="Reset zoom to full width">
+                ↔ Fit Width
+            </button>
+
+            <span class="text-muted mx-1">|</span>
+
+            @* Custom zoom amount *@
+            <div class="input-group input-group-sm" style="width: 200px;">
+                <input type="number" class="form-control" @bind="customZoomAmount"
+                       min="0.05" max="5.0" step="0.05" placeholder="Amount" />
+                <button class="btn btn-outline-secondary" @onclick="OnCustomZoomIn" title="Zoom in by custom amount">+</button>
+                <button class="btn btn-outline-secondary" @onclick="OnCustomZoomOut" title="Zoom out by custom amount">−</button>
+            </div>
+
+            <span class="text-muted mx-1">|</span>
+
+            @* Print controls *@
+            <button class="btn btn-outline-primary btn-sm" @onclick="OnPrintAll" title="Print all pages">
+                🖨 Print All
+            </button>
+
+            <div class="input-group input-group-sm" style="width: 250px;">
+                <input type="number" class="form-control" @bind="printStartPage" min="1" placeholder="From" />
+                <input type="number" class="form-control" @bind="printEndPage" min="1" placeholder="To" />
+                <button class="btn btn-outline-primary" @onclick="OnPrintRange" title="Print page range">
+                    🖨 Range
+                </button>
+            </div>
+        </div>
+
+        <PdfViewer @ref="pdfViewerRef"
+                   PDFData="@pdfBytes"
+                   ZoomPercentage="@selectedZoom"
+                   Orientation="@selectedOrientation"
+                   DisplayMode="@selectedDisplayMode"
+                   MinZoom="0.1"
+                   MaxZoom="5.0"
+                   ZoomRate="0.25"
+                   Height="70vh" />
+    }
+    else
+    {
+        <div class="border rounded p-5 text-center text-muted" style="height: 200px; display: flex; align-items: center; justify-content: center; background: #f8f9fa;">
+            <span>Select a PDF file above to view it here.</span>
+        </div>
+    }
+}
+
+</TelerikRootComponent>
+
+@code {
+    // Tracks whether the WASM runtime is ready and event handlers are wired up.
+    // Prevents the user from interacting with controls that don't work yet.
+    private bool _isInteractive;
+
+    private PdfZoom selectedZoom = PdfZoom.FullWidth;
+    private PdfOrientation selectedOrientation = PdfOrientation.Portrait;
+    private PdfDisplayMode selectedDisplayMode = PdfDisplayMode.SinglePage;
+
+    private byte[]? pdfBytes;
+    private string? selectedFileName;
+    private long selectedFileSize;
+
+    private const long MaxFileSize = 50 * 1024 * 1024; // 50 MB
+
+    // ── PdfViewer @ref for calling public methods ──
+    private PdfViewer? pdfViewerRef;
+
+    // ── Zoom controls state ──
+    private double customZoomAmount = 0.25;
+
+    // ── Print controls state ──
+    private int printStartPage = 1;
+    private int printEndPage = 1;
+
+    // ── Search state ──
+    private string searchQuery = string.Empty;
+
+    // ── Error/info message for file selection ──
+    private string? fileErrorMessage;
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // OnAfterRender only fires once the WASM runtime is active
+            // and the component is truly interactive.
+            _isInteractive = true;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnFileSelected(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+
+        if (file is null) return;
+
+        // Clear any previous error
+        fileErrorMessage = null;
+
+        if (!file.ContentType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase)
+            && !file.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+        {
+            fileErrorMessage = "Please select a valid PDF file.";
+            return;
+        }
+
+        selectedFileName = file.Name;
+        selectedFileSize = file.Size;
+
+        await using var stream = file.OpenReadStream(maxAllowedSize: MaxFileSize);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms);
+        pdfBytes = ms.ToArray();
+    }
+
+    // ── Zoom button handlers ──
+
+    private async Task OnZoomIn()
+    {
+        if (pdfViewerRef is not null)
+            await pdfViewerRef.ZoomInAsync();
+    }
+
+    private async Task OnZoomOut()
+    {
+        if (pdfViewerRef is not null)
+            await pdfViewerRef.ZoomOutAsync();
+    }
+
+    /// <summary>Reset zoom to full width, clearing any pinch/wheel override.</summary>
+    private async Task OnResetZoom()
+    {
+        if (pdfViewerRef is not null)
+            await pdfViewerRef.SetZoomAsync(PdfZoom.FullWidth);
+    }
+
+    private async Task OnCustomZoomIn()
+    {
+        if (pdfViewerRef is not null)
+            await pdfViewerRef.ZoomInAsync((decimal)customZoomAmount);
+    }
+
+    private async Task OnCustomZoomOut()
+    {
+        if (pdfViewerRef is not null)
+            await pdfViewerRef.ZoomOutAsync((decimal)customZoomAmount);
+    }
+
+    // ── Print button handlers ──
+
+    private async Task OnPrintAll()
+    {
+        if (pdfViewerRef is not null)
+            await pdfViewerRef.PrintAsync();
+    }
+
+    private async Task OnPrintRange()
+    {
+        if (pdfViewerRef is not null)
+            await pdfViewerRef.PrintAsync(printStartPage, printEndPage);
+    }
+
+    // ── Search handlers ──
+
+    private async Task OnSearch()
+    {
+        if (pdfViewerRef is not null)
+            await pdfViewerRef.SearchAsync(searchQuery);
+    }
+
+    private async Task OnClearSearch()
+    {
+        searchQuery = string.Empty;
+        if (pdfViewerRef is not null)
+            await pdfViewerRef.SearchAsync(null);
+    }
+
+    /// <summary>Trigger search on Enter key press.</summary>
+    private async Task OnSearchKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            await OnSearch();
+    }
+
+    // ── Helpers ──
+
+    private static string FormatFileSize(long bytes)
+    {
+        if (bytes < 1024)
+            return $"{bytes} B";
+        if (bytes < 1024 * 1024)
+            return $"{bytes / 1024.0:F1} KB";
+        return $"{bytes / (1024.0 * 1024.0):F1} MB";
+    }
+}

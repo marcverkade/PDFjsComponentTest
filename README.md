@@ -1,6 +1,7 @@
-# Blazor PDF Viewer Component
+# VSIPdfViewer - Blazor PDF Viewer Component
 
 A feature-rich, dependency-free PDF viewer component for Blazor WebAssembly. Built on [PDF.js](https://mozilla.github.io/pdf.js/) (loaded lazily from CDN), it provides a native-app-like PDF viewing experience with touch gestures, keyboard navigation, zoom controls, search, print, download, and content protection � all without server-side dependencies.
+Build out of frustration of the absence of pinching in the Telerik PDF Viewer for over 5 years which made the PDF Viewer useless on mobile devices!
 
 ![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet)
 ![Blazor WASM](https://img.shields.io/badge/Blazor-WebAssembly-512BD4?logo=blazor)
@@ -8,12 +9,13 @@ A feature-rich, dependency-free PDF viewer component for Blazor WebAssembly. Bui
 
 ---
 
-## Features
+## Features - Version 1.0
 
 - Single page and continuous scroll display modes
 - Zoom: pinch-to-zoom, Ctrl+wheel, double-tap, toolbar buttons, programmatic API
+- Zoom presets up to 1000% via enum and unlimited via pinch/wheel up to configurable MaxZoom
 - Pan: click-and-drag (mouse), touch scroll, arrow key scrolling
-- Touch gestures: pinch-to-zoom, double-tap toggle, swipe page navigation
+- Touch gestures: pinch-to-zoom with focal-point anchoring, double-tap toggle, swipe page navigation
 - Keyboard navigation: arrow keys to scroll/navigate, Ctrl+Arrow for instant page change
 - Mouse swipe: drag-at-boundary page navigation in single-page mode
 - Text search with highlighted results (case and diacritics insensitive)
@@ -32,12 +34,12 @@ A feature-rich, dependency-free PDF viewer component for Blazor WebAssembly. Bui
 The component is self-contained. Copy these files into your Blazor WebAssembly project:
 
     Components/
-        PdfViewer.razor            Main component (markup and C# logic)
-        PdfViewer.razor.css        Scoped styles (toolbar, mobile layout)
-        PdfViewerEnums.cs          PdfZoom, PdfOrientation, PdfDisplayMode enums
+        VSIPdfViewer.razor            Main component (markup and C# logic)
+        VSIPdfViewer.razor.css        Scoped styles (toolbar, mobile layout)
+        VSIPdfViewerEnums.cs          VSIPdfZoom, VSIPdfOrientation, VSIPdfDisplayMode enums
 
     wwwroot/js/
-        pdfViewerInterop.js        JavaScript interop (PDF.js, gestures, zoom)
+        VSIPdfViewerInterop.js        JavaScript interop (PDF.js, gestures, zoom)
 
 No NuGet packages required. PDF.js is loaded automatically from CDN (jsdelivr.net) on first use.
 
@@ -47,9 +49,9 @@ No NuGet packages required. PDF.js is loaded automatically from CDN (jsdelivr.ne
 
 ### Minimal example � load from URL
 
-    <PdfViewer PDFFileName="pdf/sample.pdf"
-               ZoomPercentage="PdfZoom.FullWidth"
-               Height="80vh" />
+    <VSIPdfViewer PDFFileName="pdf/sample.pdf"
+                  ZoomPercentage="VSIPdfZoom.FullWidth"
+                  Height="80vh" />
 
 Place your PDF file in the server project's wwwroot/pdf/ folder (not the .Client project).
 
@@ -59,18 +61,18 @@ Place your PDF file in the server project's wwwroot/pdf/ folder (not the .Client
 
     @if (pdfBytes is not null)
     {
-        <PdfViewer @ref="viewer"
-                   PDFData="@pdfBytes"
-                   ZoomPercentage="PdfZoom.FullWidth"
-                   DisplayMode="PdfDisplayMode.SinglePage"
-                   Orientation="PdfOrientation.Portrait"
-                   MinZoom="0.1"
-                   MaxZoom="5.0"
-                   Height="70vh" />
+        <VSIPdfViewer @ref="viewer"
+                      PDFData="@pdfBytes"
+                      ZoomPercentage="VSIPdfZoom.FullWidth"
+                      DisplayMode="VSIPdfDisplayMode.SinglePage"
+                      Orientation="VSIPdfOrientation.Portrait"
+                      MinZoom="0.1"
+                      MaxZoom="10.0"
+                      Height="70vh" />
     }
 
     @code {
-        private PdfViewer? viewer;
+        private VSIPdfViewer? viewer;
         private byte[]? pdfBytes;
 
         private async Task OnFileSelected(InputFileChangeEventArgs e)
@@ -84,23 +86,23 @@ Place your PDF file in the server project's wwwroot/pdf/ folder (not the .Client
 
 ### Full-featured example with programmatic control
 
-    <PdfViewer @ref="viewer"
-               PDFFileName="pdf/document.pdf"
-               ZoomPercentage="PdfZoom.FullWidth"
-               Orientation="PdfOrientation.Portrait"
-               DisplayMode="PdfDisplayMode.SinglePage"
-               PreventDownload="false"
-               PreventPrinting="false"
-               MinZoom="0.1"
-               MaxZoom="5.0"
-               ZoomRate="0.25"
-               Width="100%"
-               Height="70vh"
-               CssClass="my-custom-class" />
+    <VSIPdfViewer @ref="viewer"
+                  PDFFileName="pdf/document.pdf"
+                  ZoomPercentage="VSIPdfZoom.FullWidth"
+                  Orientation="VSIPdfOrientation.Portrait"
+                  DisplayMode="VSIPdfDisplayMode.SinglePage"
+                  PreventDownload="false"
+                  PreventPrinting="false"
+                  MinZoom="0.1"
+                  MaxZoom="10.0"
+                  ZoomRate="0.25"
+                  Width="100%"
+                  Height="70vh"
+                  CssClass="my-custom-class" />
 
     <button @onclick="() => viewer?.ZoomInAsync()">Zoom In</button>
     <button @onclick="() => viewer?.ZoomOutAsync()">Zoom Out</button>
-    <button @onclick="() => viewer?.SetZoomAsync(PdfZoom.FullWidth)">Fit Width</button>
+    <button @onclick="() => viewer?.SetZoomAsync(VSIPdfZoom.FullWidth)">Fit Width</button>
     <button @onclick="() => viewer?.PrintAsync()">Print All</button>
     <button @onclick="() => viewer?.PrintAsync(1, 3)">Print Pages 1-3</button>
     <button @onclick="() => viewer?.DownloadAllAsync("my-doc.pdf")">Download PDF</button>
@@ -109,7 +111,7 @@ Place your PDF file in the server project's wwwroot/pdf/ folder (not the .Client
     <button @onclick="() => viewer?.SearchAsync(null)">Clear Search</button>
 
     @code {
-        private PdfViewer? viewer;
+        private VSIPdfViewer? viewer;
     }
 
 ---
@@ -120,19 +122,19 @@ Place your PDF file in the server project's wwwroot/pdf/ folder (not the .Client
 |---|---|---|---|
 | PDFFileName | string | "" | URL or relative path to a PDF file. Ignored when PDFData is provided. |
 | PDFData | byte[]? | null | Raw PDF bytes (e.g. from InputFile). Takes priority over PDFFileName. |
-| ZoomPercentage | PdfZoom | Percent100 | Initial zoom level. |
-| Orientation | PdfOrientation | Portrait | Display orientation (Portrait or Landscape). |
-| DisplayMode | PdfDisplayMode | SinglePage | SinglePage (one page with navigation) or Continuous (all pages in a scroll). |
+| ZoomPercentage | VSIPdfZoom | Percent100 | Initial zoom level. |
+| Orientation | VSIPdfOrientation | Portrait | Display orientation (Portrait or Landscape). |
+| DisplayMode | VSIPdfDisplayMode | SinglePage | SinglePage (one page with navigation) or Continuous (all pages in a scroll). |
 | Width | string? | "100%" | CSS width of the viewer container (e.g. "800px", "100%"). |
 | Height | string? | null | CSS height (e.g. "700px", "80vh"). If unset, grows to fit content up to 100vh. |
 | CssClass | string? | null | Additional CSS class(es) for the outer container. |
-| MinZoom | double | 0.5 | Minimum zoom level (0.0-10.0). Clamps all zoom methods and gestures. |
-| MaxZoom | double | 4.0 | Maximum zoom level (0.0-10.0). Clamps all zoom methods and gestures. |
+| MinZoom | double | 0.5 | Minimum zoom level (0.0�10.0). Clamps all zoom methods and gestures. |
+| MaxZoom | double | 4.0 | Maximum zoom level (0.0�10.0). Clamps all zoom methods and gestures. |
 | ZoomRate | double | 0.25 | Default step size for ZoomInAsync() / ZoomOutAsync() without arguments. |
 | PreventDownload | bool | false | Blocks download API, context menu, long-press, and image dragging. |
 | PreventPrinting | bool | false | Blocks print API methods. |
 
-### Enum: PdfZoom
+### Enum: VSIPdfZoom
 
 | Value | Scale | Description |
 |---|---|---|
@@ -141,17 +143,22 @@ Place your PDF file in the server project's wwwroot/pdf/ folder (not the .Client
 | Percent100 | 1.00 | 100% zoom (actual size) |
 | Percent150 | 1.50 | 150% zoom |
 | Percent200 | 2.00 | 200% zoom |
+| Percent300 | 3.00 | 300% zoom |
+| Percent400 | 4.00 | 400% zoom |
+| Percent500 | 5.00 | 500% zoom |
+| Percent750 | 7.50 | 750% zoom |
+| Percent1000 | 10.00 | 1000% zoom |
 | FullPage | auto | Fit entire page within container |
 | FullWidth | auto | Fit page width to container |
 
-### Enum: PdfOrientation
+### Enum: VSIPdfOrientation
 
 | Value | Rotation | Description |
 |---|---|---|
 | Portrait | 0 degrees | Normal orientation |
 | Landscape | 90 degrees | Rotated 90 degrees clockwise |
 
-### Enum: PdfDisplayMode
+### Enum: VSIPdfDisplayMode
 
 | Value | Description |
 |---|---|
@@ -170,7 +177,7 @@ Access these via @ref on the component.
 | ZoomInAsync(decimal amount) | Zoom in by a custom amount. |
 | ZoomOutAsync() | Zoom out by the configured ZoomRate. |
 | ZoomOutAsync(decimal amount) | Zoom out by a custom amount. |
-| SetZoomAsync(PdfZoom zoom) | Reset zoom to a specific level, clearing pinch/wheel overrides. |
+| SetZoomAsync(VSIPdfZoom zoom) | Reset zoom to a specific level, clearing pinch/wheel overrides. |
 | PrintAsync() | Print all pages. Blocked when PreventPrinting is true. |
 | PrintAsync(int start, int end) | Print a page range (1-based, inclusive). |
 | SearchAsync(string? text) | Search and highlight text. Pass null or empty to clear highlights. |
@@ -189,7 +196,7 @@ Access these via @ref on the component.
 
 | Gesture | Action |
 |---|---|
-| Pinch (two fingers) | Zoom in/out with GPU-accelerated visual feedback. Focal point stays under fingers. |
+| Pinch (two fingers) | Zoom in/out with GPU-accelerated visual feedback. Focal point stays under fingers using content-relative coordinate anchoring, even when fingers move during the gesture. |
 | Double-tap | Toggle between fit-to-width and 2.5x zoom. Centers on the tap point. |
 | Single-finger drag | Pan/scroll when content is zoomed and overflows. |
 | Swipe left at right edge | Navigate to next page (single-page mode). |
@@ -282,7 +289,7 @@ iOS Safari ignores the viewport meta tag's user-scalable=no since iOS 10. This p
 | JS touchend handler | Double-tap-to-zoom outside PDF viewer | Works |
 | CSS overscroll-behavior: none | iOS bounce/rubber-band scroll | Works |
 
-All JS handlers check if the touch originated inside the PDF viewer's scroll container (css class: pdf-viewer-pages). If it did, the event passes through to the component's own gesture handlers. Everything outside gets blocked.
+All JS handlers check if the touch originated inside the PDF viewer's scroll container (CSS class: pdf-viewer-pages). If it did, the event passes through to the component's own gesture handlers. Everything outside gets blocked.
 
 The script is placed in App.razor before the closing body tag. The CSS rules are in wwwroot/app.css on the html, body selector.
 
@@ -301,7 +308,7 @@ The demo page (PDF.razor) hides desktop-only controls on mobile:
 
 **Hidden on mobile:** File picker, orientation select, zoom presets, display mode select, print/download buttons, protection toggles, zoom step controls.
 
-**Visible on mobile:** Compact search bar, full PdfViewer with toolbar (navigation and zoom), all touch gestures (pinch, swipe, double-tap).
+**Visible on mobile:** Compact search bar, full VSIPdfViewer with toolbar (navigation and zoom), all touch gestures (pinch, swipe, double-tap).
 
 ---
 
@@ -343,6 +350,10 @@ iOS Safari enforces hard limits on canvas memory (approximately 256 MB). The vie
 
 After every zoom re-render, the scroll position is restored so the point under the cursor (or finger midpoint) stays in the same viewport position. This uses page-relative coordinates that survive the DOM swap, independent of wrapper centering offsets.
 
+**Pinch-to-zoom** uses content-relative coordinates (not viewport-relative) for the CSS transform anchor point. This ensures the zoom centers on the actual content point under the fingers, even when the user is scrolled to the middle of a large document. After the gesture ends, the final finger viewport position and the original page-relative focal point are used to compute the correct scroll offset for the re-rendered content.
+
+**Ctrl+wheel zoom** captures the cursor position in content coordinates at the start of each wheel burst and scales around that fixed point for the duration of the burst.
+
 ---
 
 ## Project Structure
@@ -352,17 +363,17 @@ After every zoom re-render, the scroll position is restored so the point under t
             wwwroot/pdf/                           Static PDF files served from here
             wwwroot/app.css                        Global styles + iOS zoom prevention CSS
             Components/App.razor                   Root HTML + iOS zoom prevention script
-            Components/Layout/                     MainLayout, NavMenu
+            Components/Layout/MainLayout.razor     Simplified layout (no sidebar/nav menu)
 
         PDFjsComponentTest.Client/                 Blazor WebAssembly client
             Components/
-                PdfViewer.razor                    Main component (markup + C# logic)
-                PdfViewer.razor.css                Scoped styles + mobile responsive
-                PdfViewerEnums.cs                  PdfZoom, PdfOrientation, PdfDisplayMode
+                VSIPdfViewer.razor                 Main component (markup + C# logic)
+                VSIPdfViewer.razor.css             Scoped styles + mobile responsive
+                VSIPdfViewerEnums.cs               VSIPdfZoom, VSIPdfOrientation, VSIPdfDisplayMode
             Pages/
                 PDF.razor                          Demo page with all controls
             wwwroot/js/
-                pdfViewerInterop.js                JS interop module
+                VSIPdfViewerInterop.js             JS interop module
                     PDF.js bootstrap               Lazy CDN loading
                     Page rendering                 Canvas render + atomic DOM swap
                     Touch gestures                 Pinch, double-tap, swipe

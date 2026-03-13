@@ -1,4 +1,4 @@
-﻿# PDF Viewer — Mobile User Guide
+﻿# VSI PDF Viewer — Mobile User Guide
 
 A simple guide to viewing PDF documents on your phone or tablet.
 
@@ -8,18 +8,20 @@ A simple guide to viewing PDF documents on your phone or tablet.
 
 When you open the PDF Viewer on your phone, you will see:
 
-    ┌─────────────────────────────────────┐
-    │  ⏮ ◀  [ 1 ] / 5  ▶ ⏭ | − 100% + │  ← Toolbar
-    ├─────────────────────────────────────┤
-    │                                     │
-    │                                     │
-    │          Your PDF page              │  ← PDF viewing area
-    │          is shown here              │
-    │                                     │
-    │                                     │
-    └─────────────────────────────────────┘
+    ┌─────────────────────────────────────────────────────┐
+    │  ⏮ ◀  [ 1 ] / 5  ▶ ⏭ | − 100% + | Portrait | Single │  ← Toolbar
+    ├─────────────────────────────────────────────────────┤
+    │                                                     │
+    │                                                     │
+    │              Your PDF page                          │  ← PDF viewing area
+    │              is shown here                          │
+    │                                                     │
+    │                                                     │
+    └─────────────────────────────────────────────────────┘
 
 The toolbar is at the top. The PDF page fills the rest of the screen.
+
+On mobile, the toolbar is compact — only page navigation and zoom buttons are shown. The orientation and display mode labels are hidden to save space.
 
 ---
 
@@ -54,6 +56,14 @@ These let you make the page bigger or smaller:
 | − | Make the page SMALLER (zooms out by 25%) |
 | Zoom: 100% | Shows the current zoom level. This updates automatically when you pinch to zoom. |
 | + | Make the page BIGGER (zooms in by 25%) |
+
+### Protection indicator
+
+If the document is protected, you will also see:
+
+    🔒 Protected
+
+This means downloading and/or printing has been disabled. See the "Protected Documents" section below.
 
 ---
 
@@ -105,9 +115,9 @@ You can zoom in to see small text or details, and zoom out to see the full page.
 
 **Tips:**
 
-- The spot between your two fingers stays in place while you zoom. So put your fingers on the part you want to look at.
-- While you zoom, the page may look slightly blurry. When you lift your fingers, it sharpens up. This is normal.
-- There is a minimum and maximum zoom level. You cannot zoom smaller than about 10% or larger than about 500% (depends on settings).
+- The spot between your two fingers stays in place while you zoom. So put your fingers on the part you want to look at. This works even when you are scrolled to the middle of a large page — the zoom always anchors to the content under your fingers.
+- While you zoom, the page may look slightly blurry. When you lift your fingers, it sharpens up. This is normal — the viewer shows a fast preview during the gesture and renders a sharp image when you let go.
+- There is a minimum and maximum zoom level. The default range is 50% to 400%, but this can be configured. The zoom percentage in the toolbar always shows the actual current level.
 
 ---
 
@@ -253,6 +263,8 @@ Some PDFs may be protected by the person who set up the viewer. When a document 
 - Long-pressing will NOT show a "Save" or "Share" menu
 - Right-clicking (on tablets with mouse support) will NOT show a context menu
 
+The tooltip on the lock icon tells you exactly what is disabled (download, printing, or both).
+
 ---
 
 ## Search for Text
@@ -279,6 +291,40 @@ On mobile, a compact search bar appears above the PDF viewer.
 
 ---
 
+## Desktop Features
+
+When using the viewer on a desktop computer with a mouse and keyboard, you have additional controls:
+
+### Mouse
+
+| Action | Result |
+|---|---|
+| Click and drag | Pan / scroll the PDF (cursor changes to a hand) |
+| Ctrl + mouse wheel | Zoom in / out centered on the cursor position |
+| Fast horizontal drag at scroll edge | Navigate to next / previous page |
+
+### Keyboard
+
+| Key | Action |
+|---|---|
+| ← → | Scroll horizontally, or navigate pages when content fits |
+| ↑ ↓ | Scroll vertically |
+| Ctrl + ← | Go to previous page (instant) |
+| Ctrl + → | Go to next page (instant) |
+
+When using arrow keys at the edge of a page, the first press is absorbed (does nothing). The second press navigates to the next/previous page. This prevents accidental page turns while scrolling.
+
+### Desktop toolbar extras
+
+On desktop (768px and wider), the toolbar also shows:
+
+- Current orientation (Portrait / Landscape)
+- Current display mode (Single / Continuous)
+
+The demo page provides additional desktop-only controls: file upload, zoom presets (25%–1000%), orientation selector, display mode selector, print buttons, download buttons, and protection toggles.
+
+---
+
 ## Quick Reference Card
 
 | I want to... | Do this |
@@ -295,6 +341,8 @@ On mobile, a compact search bar appears above the PDF viewer.
 | Jump to page 7 | Tap the page number, type 7, press Enter |
 | Search for a word | Type in the search box, tap 🔎 |
 | Clear search highlights | Tap ✕ next to the search box |
+| Zoom with the mouse (desktop) | Hold Ctrl and scroll the mouse wheel |
+| Pan with the mouse (desktop) | Click and drag |
 
 ---
 
@@ -309,3 +357,5 @@ On mobile, a compact search bar appears above the PDF viewer.
 | Toolbar buttons are gray | Gray buttons mean you cannot go further in that direction (e.g. you are on the first page so "previous" is disabled). |
 | Cannot download or print | The document is protected. Look for the 🔒 icon in the toolbar. |
 | Page says "Loading PDF..." | Wait a moment. The PDF library is being downloaded for the first time. After the first load, it is cached by your browser. |
+| Zoom percentage does not match the preset I selected | Pinch or Ctrl+wheel zoom overrides the preset. The toolbar always shows the actual effective zoom. Tap − or + to adjust from the current level. |
+| Arrow keys do not work | Click once on the PDF area to give it focus. The viewer should auto-focus on load, but clicking a toolbar button can steal focus. |

@@ -1,9 +1,9 @@
 ﻿@page "/"
 @rendermode InteractiveWebAssembly
 
-<PageTitle>PDF Viewer</PageTitle>
+<PageTitle>VSI PDF Viewer - V1.00</PageTitle>
 
-<h1 class="d-none d-md-block">PDF Viewer</h1>
+<h1 class="d-none d-md-block">VSI PDF Viewer - V1.00</h1>
 
 @if (!_isInteractive)
 {
@@ -28,29 +28,34 @@ else
         <div>
             <label class="form-label">Zoom:</label>
             <select class="form-select w-auto" @bind="selectedZoom" tabindex="-1">
-                <option value="@PdfZoom.Percent25">25%</option>
-                <option value="@PdfZoom.Percent50">50%</option>
-                <option value="@PdfZoom.Percent100">100%</option>
-                <option value="@PdfZoom.Percent150">150%</option>
-                <option value="@PdfZoom.Percent200">200%</option>
-                <option value="@PdfZoom.FullPage">Full Page</option>
-                <option value="@PdfZoom.FullWidth">Full Width</option>
+                <option value="@VSIPdfZoom.Percent25">25%</option>
+                <option value="@VSIPdfZoom.Percent50">50%</option>
+                <option value="@VSIPdfZoom.Percent100">100%</option>
+                <option value="@VSIPdfZoom.Percent150">150%</option>
+                <option value="@VSIPdfZoom.Percent200">200%</option>
+                <option value="@VSIPdfZoom.Percent300">300%</option>
+                <option value="@VSIPdfZoom.Percent400">400%</option>
+                <option value="@VSIPdfZoom.Percent500">500%</option>
+                <option value="@VSIPdfZoom.Percent750">750%</option>
+                <option value="@VSIPdfZoom.Percent1000">1000%</option>
+                <option value="@VSIPdfZoom.FullPage">Full Page</option>
+                <option value="@VSIPdfZoom.FullWidth">Full Width</option>
             </select>
         </div>
 
         <div>
             <label class="form-label">Orientation:</label>
             <select class="form-select w-auto" @bind="selectedOrientation" tabindex="-1">
-                <option value="@PdfOrientation.Portrait">Portrait</option>
-                <option value="@PdfOrientation.Landscape">Landscape</option>
+                <option value="@VSIPdfOrientation.Portrait">Portrait</option>
+                <option value="@VSIPdfOrientation.Landscape">Landscape</option>
             </select>
         </div>
 
         <div>
             <label class="form-label">Display:</label>
             <select class="form-select w-auto" @bind="selectedDisplayMode" tabindex="-1">
-                <option value="@PdfDisplayMode.SinglePage">Single Page</option>
-                <option value="@PdfDisplayMode.Continuous">Continuous</option>
+                <option value="@VSIPdfDisplayMode.SinglePage">Single Page</option>
+                <option value="@VSIPdfDisplayMode.Continuous">Continuous</option>
             </select>
         </div>
 
@@ -171,7 +176,7 @@ else
         @* On mobile, use 85vh to fill the screen; on desktop, keep 70vh *@
         @if (pdfBytes is not null)
         {
-            <PdfViewer @ref="pdfViewerRef"
+            <VSIPdfViewer @ref="pdfViewerRef"
                        PDFData="@pdfBytes"
                        ZoomPercentage="@selectedZoom"
                        Orientation="@selectedOrientation"
@@ -179,13 +184,13 @@ else
                        PreventDownload="@preventDownload"
                        PreventPrinting="@preventPrinting"
                        MinZoom="0.1"
-                       MaxZoom="5.0"
+                       MaxZoom="10.0"
                        ZoomRate="0.25"
                        Height="@ViewerHeight" />
         }
         else
         {
-            <PdfViewer @ref="pdfViewerRef"
+            <VSIPdfViewer @ref="pdfViewerRef"
                        PDFFileName="@DefaultPdfUrl"
                        ZoomPercentage="@selectedZoom"
                        Orientation="@selectedOrientation"
@@ -193,7 +198,7 @@ else
                        PreventDownload="@preventDownload"
                        PreventPrinting="@preventPrinting"
                        MinZoom="0.1"
-                       MaxZoom="5.0"
+                       MaxZoom="10.0"
                        ZoomRate="0.25"
                        Height="@ViewerHeight" />
         }
@@ -208,9 +213,9 @@ else
     // Prevents the user from interacting with controls that don't work yet.
     private bool _isInteractive;
 
-    private PdfZoom selectedZoom = PdfZoom.FullWidth;
-    private PdfOrientation selectedOrientation = PdfOrientation.Portrait;
-    private PdfDisplayMode selectedDisplayMode = PdfDisplayMode.SinglePage;
+    private VSIPdfZoom selectedZoom = VSIPdfZoom.FullWidth;
+    private VSIPdfOrientation selectedOrientation = VSIPdfOrientation.Portrait;
+    private VSIPdfDisplayMode selectedDisplayMode = VSIPdfDisplayMode.SinglePage;
 
     private byte[]? pdfBytes;
     private string? selectedFileName;
@@ -219,7 +224,7 @@ else
     private const long MaxFileSize = 50 * 1024 * 1024; // 50 MB
 
     // ── PdfViewer @ref for calling public methods ──
-    private PdfViewer? pdfViewerRef;
+    private VSIPdfViewer? pdfViewerRef;
 
     // ── Zoom controls state ──
     private double customZoomAmount = 0.25;
@@ -298,7 +303,7 @@ else
     private async Task OnResetZoom()
     {
         if (pdfViewerRef is not null)
-            await pdfViewerRef.SetZoomAsync(PdfZoom.FullWidth);
+            await pdfViewerRef.SetZoomAsync(VSIPdfZoom.FullWidth);
     }
 
     // ── Print button handlers ──

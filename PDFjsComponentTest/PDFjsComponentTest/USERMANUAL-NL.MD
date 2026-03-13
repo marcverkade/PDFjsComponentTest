@@ -1,4 +1,4 @@
-﻿# PDF Viewer — Gebruikershandleiding voor Mobiel
+﻿# VSI PDF Viewer — Gebruikershandleiding voor Mobiel
 
 Een eenvoudige handleiding voor het bekijken van PDF-documenten op uw telefoon of tablet.
 
@@ -8,18 +8,20 @@ Een eenvoudige handleiding voor het bekijken van PDF-documenten op uw telefoon o
 
 Wanneer u de PDF Viewer opent op uw telefoon, ziet u het volgende:
 
-    ┌─────────────────────────────────────┐
-    │  ⏮ ◀  [ 1 ] / 5  ▶ ⏭ | − 100% + │  ← Werkbalk
-    ├─────────────────────────────────────┤
-    │                                     │
-    │                                     │
-    │        Uw PDF-pagina wordt          │  ← PDF-weergavegebied
-    │        hier getoond                 │
-    │                                     │
-    │                                     │
-    └─────────────────────────────────────┘
+    ┌─────────────────────────────────────────────────────────┐
+    │  ⏮ ◀  [ 1 ] / 5  ▶ ⏭ | − 100% + | Portrait | Single │  ← Werkbalk
+    ├─────────────────────────────────────────────────────────┤
+    │                                                         │
+    │                                                         │
+    │              Uw PDF-pagina wordt                        │  ← PDF-weergavegebied
+    │              hier getoond                               │
+    │                                                         │
+    │                                                         │
+    └─────────────────────────────────────────────────────────┘
 
 De werkbalk staat bovenaan. De PDF-pagina vult de rest van het scherm.
+
+Op mobiel is de werkbalk compact — alleen paginanavigatie en zoomknoppen worden getoond. De oriëntatie- en weergavemodus-labels zijn verborgen om ruimte te besparen.
 
 ---
 
@@ -54,6 +56,14 @@ Hiermee maakt u de pagina groter of kleiner:
 | − | Maak de pagina KLEINER (zoomt 25% uit) |
 | Zoom: 100% | Toont het huidige zoomniveau. Dit wordt automatisch bijgewerkt wanneer u knijpt om te zoomen. |
 | + | Maak de pagina GROTER (zoomt 25% in) |
+
+### Beveiligingsindicator
+
+Als het document beveiligd is, ziet u ook:
+
+    🔒 Beveiligd
+
+Dit betekent dat downloaden en/of afdrukken is uitgeschakeld. Zie het gedeelte "Beveiligde documenten" hieronder.
 
 ---
 
@@ -105,9 +115,9 @@ U kunt inzoomen om kleine tekst of details te bekijken, en uitzoomen om de hele 
 
 **Tips:**
 
-- Het punt tussen uw twee vingers blijft op dezelfde plek terwijl u zoomt. Plaats uw vingers dus op het gedeelte dat u wilt bekijken.
-- Tijdens het zoomen kan de pagina er iets wazig uitzien. Wanneer u uw vingers optilt, wordt het weer scherp. Dit is normaal.
-- Er is een minimum en maximum zoomniveau. U kunt niet kleiner zoomen dan ongeveer 10% of groter dan ongeveer 500% (afhankelijk van de instellingen).
+- Het punt tussen uw twee vingers blijft op dezelfde plek terwijl u zoomt. Plaats uw vingers dus op het gedeelte dat u wilt bekijken. Dit werkt ook wanneer u naar het midden van een grote pagina bent gescrold — de zoom ankert altijd op de inhoud onder uw vingers.
+- Tijdens het zoomen kan de pagina er iets wazig uitzien. Wanneer u uw vingers optilt, wordt het weer scherp. Dit is normaal — de viewer toont een snelle preview tijdens het gebaar en rendert een scherp beeld wanneer u loslaat.
+- Er is een minimum en maximum zoomniveau. Het standaardbereik is 50% tot 400%, maar dit kan worden geconfigureerd. Het zoompercentage in de werkbalk toont altijd het werkelijke huidige niveau.
 
 ---
 
@@ -253,6 +263,8 @@ Sommige PDF's kunnen beveiligd zijn door de persoon die de viewer heeft ingestel
 - Lang indrukken toont GEEN menu met "Bewaar" of "Deel"
 - Rechtsklikken (op tablets met muisondersteuning) toont GEEN contextmenu
 
+De tooltip op het slotpictogram vertelt u precies wat is uitgeschakeld (downloaden, afdrukken, of beide).
+
 ---
 
 ## Tekst zoeken
@@ -279,6 +291,40 @@ Op mobiel verschijnt er een compacte zoekbalk boven de PDF-viewer.
 
 ---
 
+## Desktopfuncties
+
+Wanneer u de viewer gebruikt op een desktopcomputer met muis en toetsenbord, heeft u extra bediening:
+
+### Muis
+
+| Actie | Resultaat |
+|---|---|
+| Klikken en slepen | PDF verschuiven / scrollen (cursor verandert in een hand) |
+| Ctrl + muiswiel | In- / uitzoomen gecentreerd op de cursorpositie |
+| Snel horizontaal slepen bij scrollrand | Navigeren naar volgende / vorige pagina |
+
+### Toetsenbord
+
+| Toets | Actie |
+|---|---|
+| ← → | Horizontaal scrollen, of pagina's navigeren wanneer inhoud past |
+| ↑ ↓ | Verticaal scrollen |
+| Ctrl + ← | Naar vorige pagina (direct) |
+| Ctrl + → | Naar volgende pagina (direct) |
+
+Bij het gebruik van pijltoetsen aan de rand van een pagina wordt de eerste druk geabsorbeerd (doet niets). De tweede druk navigeert naar de volgende/vorige pagina. Dit voorkomt per ongeluk van pagina wisselen tijdens het scrollen.
+
+### Extra werkbalkitems op desktop
+
+Op desktop (768px en breder) toont de werkbalk ook:
+
+- Huidige oriëntatie (Portrait / Landscape)
+- Huidige weergavemodus (Single / Continuous)
+
+De demopagina biedt extra desktop-only bedieningselementen: bestand uploaden, zoomvoorinstellingen (25%–1000%), oriëntatiekeuze, weergavemoduskeuze, afdrukknoppen, downloadknoppen en beveiligingsschakelaars.
+
+---
+
 ## Snelkaart
 
 | Ik wil... | Doe dit |
@@ -295,6 +341,8 @@ Op mobiel verschijnt er een compacte zoekbalk boven de PDF-viewer.
 | Naar pagina 7 springen | Tik op het paginanummer, typ 7, druk op Enter |
 | Een woord zoeken | Typ in het zoekveld, tik op 🔎 |
 | Zoekmarkeringen wissen | Tik op ✕ naast het zoekveld |
+| Zoomen met de muis (desktop) | Houd Ctrl ingedrukt en scroll het muiswiel |
+| Verschuiven met de muis (desktop) | Klik en sleep |
 
 ---
 
@@ -309,3 +357,5 @@ Op mobiel verschijnt er een compacte zoekbalk boven de PDF-viewer.
 | Werkbalkknoppen zijn grijs | Grijze knoppen betekenen dat u niet verder kunt in die richting (bijv. u bent op de eerste pagina, dus "vorige" is uitgeschakeld). |
 | Kan niet downloaden of afdrukken | Het document is beveiligd. Kijk naar het 🔒 pictogram in de werkbalk. |
 | Pagina zegt "Loading PDF..." | Wacht even. De PDF-bibliotheek wordt voor de eerste keer gedownload. Na de eerste keer wordt deze opgeslagen in uw browser. |
+| Zoompercentage komt niet overeen met de gekozen voorinstelling | Knijpzoom of Ctrl+muiswiel overschrijft de voorinstelling. De werkbalk toont altijd de werkelijke effectieve zoom. Tik op − of + om vanuit het huidige niveau aan te passen. |
+| Pijltoetsen werken niet | Klik eenmaal op het PDF-gebied om het focus te geven. De viewer zou automatisch focus moeten krijgen bij het laden, maar het klikken op een werkbalkknop kan de focus wegnemen. |

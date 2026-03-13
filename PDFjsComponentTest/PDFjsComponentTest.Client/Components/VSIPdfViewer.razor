@@ -7,7 +7,7 @@
         @if (_totalPages > 0)
         {
             @* ── Page navigation ── *@
-            @if (DisplayMode == PdfDisplayMode.SinglePage && _totalPages > 1)
+            @if (DisplayMode == VSIPdfDisplayMode.SinglePage && _totalPages > 1)
             {
                 <div class="pdf-viewer-nav">
                     <button class="pdf-nav-btn" tabindex="-1" @onclick="FirstPage" disabled="@(_currentPage <= 1)" title="First page">⏮</button>
@@ -27,7 +27,7 @@
                     <button class="pdf-nav-btn" tabindex="-1" @onclick="LastPage" disabled="@(_currentPage >= _totalPages)" title="Last page">⏭</button>
                 </div>
             }
-            else if (DisplayMode == PdfDisplayMode.Continuous)
+            else if (DisplayMode == VSIPdfDisplayMode.Continuous)
             {
                 <span class="pdf-toolbar-item">@_totalPages page(s)</span>
             }
@@ -49,7 +49,7 @@
             <span class="pdf-toolbar-separator">|</span>
 
             @* ── Display mode ── *@
-            <span class="pdf-toolbar-item">@(DisplayMode == PdfDisplayMode.SinglePage ? "Single" : "Continuous")</span>
+            <span class="pdf-toolbar-item">@(DisplayMode == VSIPdfDisplayMode.SinglePage ? "Single" : "Continuous")</span>
 
             @if (PreventDownload || PreventPrinting)
             {
@@ -88,15 +88,15 @@
 
     /// <summary>Display orientation: Portrait or Landscape.</summary>
     [Parameter]
-    public PdfOrientation Orientation { get; set; } = PdfOrientation.Portrait;
+    public VSIPdfOrientation Orientation { get; set; } = VSIPdfOrientation.Portrait;
 
     /// <summary>Zoom level for rendering.</summary>
     [Parameter]
-    public PdfZoom ZoomPercentage { get; set; } = PdfZoom.Percent100;
+    public VSIPdfZoom ZoomPercentage { get; set; } = VSIPdfZoom.Percent100;
 
     /// <summary>SinglePage shows one page with navigation; Continuous renders all pages in a scroll.</summary>
     [Parameter]
-    public PdfDisplayMode DisplayMode { get; set; } = PdfDisplayMode.SinglePage;
+    public VSIPdfDisplayMode DisplayMode { get; set; } = VSIPdfDisplayMode.SinglePage;
 
     /// <summary>CSS width of the viewer container (e.g. "100%", "800px").</summary>
     [Parameter]
@@ -148,7 +148,7 @@
     // ── Private state ───────────────────────────────────────────────────
 
     private IJSObjectReference? _module;
-    private DotNetObjectReference<PdfViewer>? _dotNetRef;
+    private DotNetObjectReference<VSIPdfViewer>? _dotNetRef;
     private readonly string _containerId = $"pdf-viewer-{Guid.NewGuid():N}";
     private int _totalPages;
     private int _currentPage = 1;
@@ -174,9 +174,9 @@
 
     private string _prevPdf = string.Empty;
     private byte[]? _prevData;
-    private PdfZoom _prevZoom;
-    private PdfOrientation _prevOrientation;
-    private PdfDisplayMode _prevDisplayMode;
+    private VSIPdfZoom _prevZoom;
+    private VSIPdfOrientation _prevOrientation;
+    private VSIPdfDisplayMode _prevDisplayMode;
     private bool _prevPreventDownload;
 
     // ── Lifecycle ───────────────────────────────────────────────────────
@@ -186,7 +186,7 @@
         if (firstRender)
         {
             _module = await JS.InvokeAsync<IJSObjectReference>(
-                "import", "./js/pdfViewerInterop.js");
+                "import", "./js/VSIPdfViewerInterop.js");
             _dotNetRef = DotNetObjectReference.Create(this);
             _moduleLoaded = true;
 
@@ -465,9 +465,9 @@
 
     /// <summary>
     /// Reset zoom to a specific mode, clearing any pinch/wheel zoom override.
-    /// Accepts a <see cref="PdfZoom"/> value to reset to (e.g. PdfZoom.FullWidth).
+    /// Accepts a <see cref="VSIPdfZoom"/> value to reset to (e.g. VSIPdfZoom.FullWidth).
     /// </summary>
-    public async Task SetZoomAsync(PdfZoom zoom)
+    public async Task SetZoomAsync(VSIPdfZoom zoom)
     {
         if (_module is null || _totalPages == 0) return;
 
@@ -476,13 +476,18 @@
             // Convert the enum to the JS zoom value format
             var zoomValue = zoom switch
             {
-                PdfZoom.Percent25 => (object)0.25,
-                PdfZoom.Percent50 => 0.5,
-                PdfZoom.Percent100 => 1.0,
-                PdfZoom.Percent150 => 1.5,
-                PdfZoom.Percent200 => 2.0,
-                PdfZoom.FullPage => "page-fit",
-                PdfZoom.FullWidth => "page-width",
+                VSIPdfZoom.Percent25 => (object)0.25,
+                VSIPdfZoom.Percent50 => 0.5,
+                VSIPdfZoom.Percent100 => 1.0,
+                VSIPdfZoom.Percent150 => 1.5,
+                VSIPdfZoom.Percent200 => 2.0,
+                VSIPdfZoom.Percent300 => 3.0,
+                VSIPdfZoom.Percent400 => 4.0,
+                VSIPdfZoom.Percent500 => 5.0,
+                VSIPdfZoom.Percent750 => 7.5,
+                VSIPdfZoom.Percent1000 => 10.0,
+                VSIPdfZoom.FullPage => "page-fit",
+                VSIPdfZoom.FullWidth => "page-width",
                 _ => 1.0
             };
             await _module.InvokeVoidAsync("resetZoom", _containerId, zoomValue);
@@ -592,19 +597,24 @@
 
     private object GetZoomValue() => ZoomPercentage switch
     {
-        PdfZoom.Percent25 => 0.25,
-        PdfZoom.Percent50 => 0.5,
-        PdfZoom.Percent100 => 1.0,
-        PdfZoom.Percent150 => 1.5,
-        PdfZoom.Percent200 => 2.0,
-        PdfZoom.FullPage => "page-fit",
-        PdfZoom.FullWidth => "page-width",
+        VSIPdfZoom.Percent25 => 0.25,
+        VSIPdfZoom.Percent50 => 0.5,
+        VSIPdfZoom.Percent100 => 1.0,
+        VSIPdfZoom.Percent150 => 1.5,
+        VSIPdfZoom.Percent200 => 2.0,
+        VSIPdfZoom.Percent300 => 3.0,
+        VSIPdfZoom.Percent400 => 4.0,
+        VSIPdfZoom.Percent500 => 5.0,
+        VSIPdfZoom.Percent750 => 7.5,
+        VSIPdfZoom.Percent1000 => 10.0,
+        VSIPdfZoom.FullPage => "page-fit",
+        VSIPdfZoom.FullWidth => "page-width",
         _ => 1.0
     };
 
-    private int GetRotation() => Orientation == PdfOrientation.Landscape ? 90 : 0;
+    private int GetRotation() => Orientation == VSIPdfOrientation.Landscape ? 90 : 0;
 
-    private string GetDisplayMode() => DisplayMode == PdfDisplayMode.SinglePage ? "single" : "continuous";
+    private string GetDisplayMode() => DisplayMode == VSIPdfDisplayMode.SinglePage ? "single" : "continuous";
 
     /// <summary>
     /// Gets the tooltip text for the protection indicator.

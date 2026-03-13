@@ -1031,7 +1031,7 @@ function createViewerState(pdf, zoomValue, rotation, displayMode) {
         renderGeneration: 0,              // Incremented each render to cancel stale ones
         wrapper: null,                    // Reference to the current content wrapper div
         minScale: 0.5,                    // Minimum zoom level (set from Blazor)
-        maxScale: 4.0,                    // Maximum zoom level (set from Blazor)
+        maxScale: 10.0,                    // Maximum zoom level (set from Blazor)
     };
 }
 

@@ -11,8 +11,8 @@ const PDFJS_VERSION = '4.6.82';
 const PDFJS_CDN = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}`;
 
 // ── Configuration ───────────────────────────────────────────────────────
-const MIN_SCALE = 0.5;   // Minimum allowed zoom level
-const MAX_SCALE = 4.0;   // Maximum allowed zoom level
+const MIN_SCALE = 0.5;    // Minimum allowed zoom level
+const MAX_SCALE = 10.0;   // Maximum allowed zoom level
 
 const DOUBLE_TAP_DELAY_MS = 300;   // Max interval between taps for double-tap
 const DOUBLE_TAP_RADIUS_PX = 40;   // Max distance between taps (px)
@@ -468,10 +468,20 @@ function setupTouchGestures(containerId) {
         focalVY = mid.y - rect.top;
 
         // Apply CSS transform for instant visual feedback.
-        // translate() positions the scaled content so the original focal point
-        // stays under the fingers; scale() applies the zoom.
-        const tx = focalVX - originVX * cssRatio;
-        const ty = focalVY - originVY * cssRatio;
+        //
+        // The transform must use CONTENT-relative coordinates (focalCX/CY)
+        // not viewport-relative, because CSS transform with origin (0,0)
+        // operates on the wrapper element. When the user is scrolled to the
+        // middle of the document, viewport coords don't account for the
+        // scroll offset and the zoom would incorrectly anchor to the
+        // top-left corner.
+        //
+        // The translate positions the scaled content so the content point
+        // that was originally at the finger midpoint (focalCX, focalCY)
+        // now appears at the current finger midpoint's viewport position,
+        // accounting for the current scroll offset.
+        const tx = (focalVX + container.scrollLeft) - focalCX * cssRatio;
+        const ty = (focalVY + container.scrollTop) - focalCY * cssRatio;
 
         if (viewer.wrapper) {
             viewer.wrapper.style.transform =
@@ -484,6 +494,11 @@ function setupTouchGestures(containerId) {
      * final scale.  The CSS transform is NOT cleared here — the old wrapper
      * keeps its blurry-but-correctly-positioned appearance until renderPages
      * atomically replaces it with sharp content.
+     *
+     * Uses the page-relative focal point captured at pinch start (focalPageX,
+     * focalPageY) and the final finger viewport position (focalVX, focalVY)
+     * so that after re-render the content point under the fingers stays
+     * exactly where the user left it.
      */
     async function commitPinch() {
         isPinching = false;
@@ -491,7 +506,7 @@ function setupTouchGestures(containerId) {
         // Read the final CSS scale ratio from the wrapper's transform
         let cssRatio = 1.0;
         if (viewer.wrapper) {
-            const m = viewer.wrapper.style.transform.match(/scale\(([\d.]+)\)/);
+            const m = viewer.wrapper.style.transform.match(/scale\(([\d.e]+)\)/);
             if (m) cssRatio = parseFloat(m[1]);
         }
 
@@ -508,13 +523,19 @@ function setupTouchGestures(containerId) {
         }
 
         // Commit the final pinch scale and re-render, then restore scroll
-        // using page-relative focal point coordinates
+        // so the original focal content point (focalPageX/Y, captured at
+        // pinch start) appears at the final finger position (focalVX/VY).
+        //
+        // focalPageX/Y are in page coordinates at the OLD scale.
+        // setScrollForFocalPoint will multiply by (newScale / oldScale) to
+        // find the position in the re-rendered layout, then set scroll so
+        // that position appears at (focalVX, focalVY) in the viewport.
         viewer.pinchScale = finalScale;
         try {
             await renderPages(containerId);
             setScrollForFocalPoint(
                 containerId, focalPageX, focalPageY,
-                originVX, originVY, pinchStartScale);
+                focalVX, focalVY, pinchStartScale);
         } catch (err) {
             console.warn('[PdfViewer] Pinch commit failed:', err);
         }
